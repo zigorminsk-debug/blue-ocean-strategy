@@ -66,10 +66,8 @@ fun FeedScreen(
             subtitle = buildString {
                 val translated = state.sync.translatedArticles.coerceAtMost(state.sync.totalArticles)
                 append("${state.total} материалов · переведено $translated")
-                if (state.sync.status.isNotBlank()) {
-                    append(" · ")
-                    append(state.sync.status)
-                }
+                if (state.sync.syncing) append(" · синк…")
+                else if (state.sync.translating) append(" · перевод…")
             }
         ) {
             AppIconButton(
