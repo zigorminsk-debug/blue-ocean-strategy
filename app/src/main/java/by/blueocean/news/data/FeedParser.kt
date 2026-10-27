@@ -32,6 +32,11 @@ object FeedParser {
     private val isoZone: DateTimeFormatter =
         DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss[.SSS]XXX", Locale.ENGLISH)
 
+    private val SUMMARY_TAGS = setOf("description", "summary", "content")
+    private val CONTENT_TAGS = setOf("encoded", "content")
+    private val DATE_TAGS = setOf("pubdate", "published", "updated", "date")
+    private val IMAGE_TAGS = setOf("content", "thumbnail", "enclosure", "image")
+
     fun parse(xml: String, sourceId: String): List<Item> {
         if (xml.isBlank()) return emptyList()
         val doc = try {
@@ -69,18 +74,11 @@ object FeedParser {
             }
         }
 
-        val rawSummary = sequenceOf("description", "summary", "content", "encoded")
-            .mapNotNull { tag -> firstText(node, tag) }
-            .firstOrNull { it.isNotBlank() }
-            .orEmpty()
-
+        val rawSummary = findText(node, SUMMARY_TAGS).orEmpty()
         val summary = cleanHtml(rawSummary).take(900)
 
-        // Полный текст из ленты (content:encoded часто содержит всю статью)
-        val rawContent = sequenceOf("encoded", "content")
-            .mapNotNull { tag -> firstText(node, tag) }
-            .maxByOrNull { it.length }
-            .orEmpty()
+        // Полный текст из ленты: content:encoded нередко содержит всю статью
+        val rawContent = findText(node, CONTENT_TAGS).orEmpty()
         val feedFullText = if (rawContent.length > rawSummary.length + 300) {
             cleanHtml(rawContent).take(12000)
         } else {
@@ -88,11 +86,7 @@ object FeedParser {
         }
 
         val image = findImage(node)
-
-        val dateText = sequenceOf("pubDate", "published", "updated", "date", "dc:date")
-            .mapNotNull { tag -> firstText(node, tag) }
-            .firstOrNull { it.isNotBlank() }
-            .orEmpty()
+        val dateText = findText(node, DATE_TAGS).orEmpty()
 
         return Item(
             title = title.take(300),
@@ -104,20 +98,31 @@ object FeedParser {
         )
     }
 
-    private fun firstText(node: Element, tag: String): String? =
-        node.getElementsByTag(tag).firstOrNull()?.text()
+    /**
+     * Ищет текст тега по локальному имени, игнорируя префиксы пространств имён
+     * (content:encoded, dc:date, media:content и т.п.).
+     */
+    private fun findText(node: Element, localNames: Set<String>): String? {
+        for (element in node.getAllElements()) {
+            if (element === node) continue
+            val local = element.tagName().substringAfterLast(':').lowercase(Locale.ROOT)
+            if (local in localNames) {
+                val text = element.text()
+                if (text.isNotBlank()) return text
+            }
+        }
+        return null
+    }
 
     private fun findImage(node: Element): String {
-        val mediaTags = listOf("media:content", "media:thumbnail", "enclosure", "image", "thumbnail")
-        for (tag in mediaTags) {
-            val el = node.getElementsByTag(tag).firstOrNull() ?: continue
-            val url = el.attr("url").ifBlank { el.text() }
+        for (element in node.getAllElements()) {
+            val local = element.tagName().substringAfterLast(':').lowercase(Locale.ROOT)
+            if (local !in IMAGE_TAGS) continue
+            val url = element.attr("url").ifBlank { element.text() }
             if (url.startsWith("http") && looksLikeImage(url)) return url
         }
         // Первая картинка внутри описания
-        val html = node.selectFirst("description")?.text()
-            ?: node.selectFirst("content")?.text()
-            ?: node.selectFirst("encoded")?.text()
+        val html = findText(node, SUMMARY_TAGS)
         if (!html.isNullOrBlank()) {
             val img = runCatching {
                 Jsoup.parse(html).selectFirst("img")?.attr("src").orEmpty()
@@ -140,32 +145,28 @@ object FeedParser {
     }
 
     private fun clean(text: String): String = text
-        .replace("\u00a0", " ")
+        .replace('\u00a0', ' ')
         .replace(Regex("\\s+"), " ")
         .trim()
 
     fun parseDate(raw: String): Long {
         val value = raw.trim()
         if (value.isEmpty()) return System.currentTimeMillis()
-        // Уже число (Unix time в секундах или миллисекундах)
         value.toLongOrNull()?.let { number ->
             return if (number < 100_000_000_000L) number * 1000 else number
         }
         val candidates = listOf(
             runCatching { ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant() },
-            runCatching { OffsetDateTimeCompat(value) },
+            runCatching { java.time.OffsetDateTime.parse(value, DateTimeFormatter.ISO_OFFSET_DATE_TIME).toInstant() },
             runCatching { ZonedDateTime.parse(value, rfc1123).toInstant() },
             runCatching { ZonedDateTime.parse(value, rfc1123Short).toInstant() },
             runCatching { ZonedDateTime.parse(value, isoZone).toInstant() },
             runCatching { Instant.parse(value) }
         )
-        for (c in candidates) {
-            val instant = c.getOrNull() ?: continue
+        for (candidate in candidates) {
+            val instant = candidate.getOrNull() ?: continue
             return instant.toEpochMilli()
         }
         return System.currentTimeMillis()
     }
-
-    private fun OffsetDateTimeCompat(value: String): Instant =
-        java.time.OffsetDateTime.parse(value, DateTimeFormatter.ISO_OFFSET_DATE_TIME).toInstant()
 }
