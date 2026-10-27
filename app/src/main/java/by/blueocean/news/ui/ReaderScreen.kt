@@ -184,21 +184,29 @@ fun ReaderScreen(
             // Переключатель «Перевод / Оригинал»
             item("switch") {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    AssistChip(
-                        onClick = { if (reader.showOriginal) onToggleOriginal() },
-                        label = { Text("🇷🇺 Перевод") },
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    AssistChip(
-                        onClick = { if (!reader.showOriginal) onToggleOriginal() },
-                        label = { Text("🌐 Оригинал (${article.lang})") },
-                        shape = RoundedCornerShape(10.dp)
-                    )
+                    if (article.lang != "ru") {
+                        AssistChip(
+                            onClick = { if (reader.showOriginal) onToggleOriginal() },
+                            label = { Text("🇷🇺 Перевод") },
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        AssistChip(
+                            onClick = { if (!reader.showOriginal) onToggleOriginal() },
+                            label = { Text("🌐 Оригинал (${article.lang})") },
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                    } else {
+                        AssistChip(
+                            onClick = { },
+                            label = { Text("🇷🇺 Русский источник") },
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                    }
                     Spacer(Modifier.weight(1f))
                     if (bodyText.isNotBlank()) {
                         Text(
-                            text = "${ArticleExtractor.readingMinutes(bodyText)} мин",
+                            text = "${ArticleExtractor.readingMinutes(bodyText)} мин чтения",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -284,13 +292,23 @@ fun ReaderScreen(
                         shape = RoundedCornerShape(18.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                     ) {
-                        Text(
-                            text = bodyText,
-                            modifier = Modifier.padding(16.dp),
-                            fontSize = fontSize.sp,
-                            lineHeight = (fontSize * 1.55f).sp,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = bodyText,
+                                fontSize = fontSize.sp,
+                                lineHeight = (fontSize * 1.55f).sp,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            if (!reader.showOriginal && article.lang != "ru") {
+                                Spacer(Modifier.height(14.dp))
+                                Text(
+                                    text = "Машинный перевод. Возможны неточности формулировок — " +
+                                        "оригинал доступен по переключателю выше.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     }
                 }
             } else if (!reader.loading && reader.error == null) {

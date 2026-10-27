@@ -1,6 +1,7 @@
 package by.blueocean.news.data
 
 import android.content.Context
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -113,6 +114,7 @@ class NewsRepository(
         }
 
         val fresh = store.insertNew(entities)
+        Log.i(TAG, "sync: sources_ok=$ok failed=$failed candidates=${candidates.size} new=${fresh.size}")
 
         onProgress("Добавлено ${fresh.size} новых. Перевожу на русский…")
 
@@ -145,7 +147,10 @@ class NewsRepository(
         onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }
     ): Int = withContext(Dispatchers.IO) {
         val pending = store.pendingTranslation(limit)
-        if (pending.isEmpty()) return@withContext 0
+        if (pending.isEmpty()) {
+            Log.i(TAG, "translate: queue empty")
+            return@withContext 0
+        }
         var count = 0
         var consecutiveFailures = 0
         for ((index, article) in pending.withIndex()) {
@@ -159,6 +164,7 @@ class NewsRepository(
             }
             onProgress(index + 1, pending.size)
         }
+        Log.i(TAG, "translate: done=$count of ${pending.size}")
         count
     }
 
@@ -243,6 +249,7 @@ class NewsRepository(
             ?: return@withContext ReaderResult("", "", "Статья не найдена")
 
         if (article.fullTextRu.isNotBlank()) {
+            Log.i(TAG, "reader: cache hit id=${article.id} chars=${article.fullTextRu.length}")
             return@withContext ReaderResult(article.fullText, article.fullTextRu, null)
         }
 
@@ -290,6 +297,7 @@ class NewsRepository(
         }
 
         store.setFullText(article.id, original, translated)
+        Log.i(TAG, "reader: id=${article.id} original=${original.length} translated=${translated.length}")
         onStage("Готово", 100)
         ReaderResult(original, translated, note)
     }
@@ -297,6 +305,7 @@ class NewsRepository(
     fun isRussianText(text: String): Boolean = translator.isRussian(text)
 
     companion object {
+        private const val TAG = "BlueOcean"
         private const val SEPARATOR = "[[[SEP]]]"
 
         @Volatile

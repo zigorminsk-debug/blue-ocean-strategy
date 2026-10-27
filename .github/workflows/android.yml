@@ -267,7 +267,7 @@ jobs:
           adb install -r "$APK" 2>&1 | tail -n 3
           adb logcat -c
           adb shell am start -W -n by.blueocean.news/.MainActivity 2>&1 | tail -n 6
-          sleep 45
+          sleep 70
           PID="$(adb shell pidof by.blueocean.news | tr -d '\r')"
           adb logcat -d > logcat.txt
           adb exec-out screencap -p > screen.png
@@ -283,6 +283,8 @@ jobs:
               echo "RESULT: APP_ALIVE"
               grep -E "Displayed by.blueocean.news|Start proc.*blueocean" logcat.txt | head -n 5
             fi
+            echo "--- логи приложения ---"
+            grep -E "BlueOcean|OkHttp|UnknownHost|SSLHandshake" logcat.txt | tail -n 25
           } | tee smoke-result.txt
           if grep -q "FATAL EXCEPTION" logcat.txt || [ -z "$PID" ]; then exit 1; fi
           exit 0
@@ -301,6 +303,24 @@ jobs:
             smoke-result.txt
           if-no-files-found: ignore
           retention-days: 14
+
+      - name: Скриншот в репозиторий
+        if: always() && hashFiles('screen.png') != ''
+        shell: bash
+        run: |
+          set -e
+          mkdir -p docs
+          cp screen.png docs/screenshot.png
+          cp smoke-result.txt docs/smoke-result.txt 2>/dev/null || true
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/screenshot.png docs/smoke-result.txt 2>/dev/null || git add docs/screenshot.png
+          if git diff --cached --quiet; then
+            echo "изменений нет"
+            exit 0
+          fi
+          git commit -m "ci: скриншот smoke-теста [skip ci]"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
 
       - name: Отчёт smoke-теста
         if: always()
