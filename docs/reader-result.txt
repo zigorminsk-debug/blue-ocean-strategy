@@ -1,12 +1,12 @@
 Тап: 540,1200
 READER_RESULT: OK
-10-27 22:15:02.308  3289  5917 I BlueOcean: translate: done=30 of 30
-10-27 22:15:08.895  3289  3460 I BlueOcean: translate: done=30 of 30
-10-27 22:15:15.669  3289  5913 I BlueOcean: translate: done=30 of 30
-10-27 22:15:24.568  3289  5817 I BlueOcean: translate: done=30 of 30
-10-27 22:15:44.471  3289  5898 I BlueOcean: translate: done=30 of 30
-10-27 22:15:45.823  3289  3460 I BlueOcean: reader: id=684 original=312 translated=397
-10-27 22:16:03.906  3289  3460 I BlueOcean: translate: done=30 of 30
-10-27 22:16:22.536  3289  3460 I BlueOcean: translate: done=30 of 30
-10-27 22:16:40.547  3289  5909 I BlueOcean: translate: done=30 of 30
-10-27 22:17:00.267  3289  3468 I BlueOcean: translate: done=30 of 30
+10-27 22:28:43.650  3407  5257 I BlueOcean: translate: done=30 of 30
+10-27 22:29:02.885  3407  5257 I BlueOcean: translate: done=30 of 30
+10-27 22:29:04.121  3407  5257 I BlueOcean: reader: id=663 original=312 translated=403
+10-27 22:29:11.734  3407  3464 I BlueOcean: translate: done=30 of 30
+10-27 22:29:24.003  3407  5252 I BlueOcean: translate: done=30 of 30
+10-27 22:29:28.649  3407  5262 I BlueOcean: translate: done=30 of 30
+10-27 22:29:34.245  3407  5254 I BlueOcean: translate: done=30 of 30
+10-27 22:29:46.856  3407  5257 I BlueOcean: translate: done=30 of 30
+10-27 22:30:04.215  3407  5260 I BlueOcean: translate: done=30 of 30
+10-27 22:30:20.493  3407  5260 I BlueOcean: translate: done=30 of 30
