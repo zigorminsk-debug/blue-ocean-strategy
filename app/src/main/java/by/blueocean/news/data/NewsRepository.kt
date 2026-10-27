@@ -45,7 +45,7 @@ class NewsRepository(
 
     suspend fun sync(
         onProgress: (String) -> Unit = {},
-        onNewData: () -> Unit = {}
+        onNewData: (List<ArticleEntity>) -> Unit = {}
     ): SyncResult = withContext(Dispatchers.IO) {
         val sources = Sources.enabled(prefs)
         if (sources.isEmpty()) {
@@ -123,7 +123,7 @@ class NewsRepository(
         Log.i(TAG, "sync: sources_ok=$ok failed=$failed candidates=${candidates.size} new=${fresh.size}")
 
         // Сразу показываем новые материалы в ленте — перевод догонит в фоне
-        if (fresh.isNotEmpty()) onNewData()
+        if (fresh.isNotEmpty()) onNewData(fresh)
 
         onProgress("Добавлено ${fresh.size} новых. Перевожу на русский…")
 

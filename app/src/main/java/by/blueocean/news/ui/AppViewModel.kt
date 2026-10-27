@@ -1,6 +1,7 @@
 package by.blueocean.news.ui
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import by.blueocean.news.BuildConfig
@@ -84,6 +85,11 @@ data class UiState(
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
 
+    private companion object {
+        const val TAG = "BlueOcean"
+    }
+
+
     private val prefs = AppPrefs(application)
     private val store = NewsStore.get(application)
     private val repo = NewsRepository.get(application)
@@ -156,22 +162,53 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         disabledSources = prefs.disabledSources()
     )
 
-    private suspend fun reload() {
-        val list = withContext(Dispatchers.IO) { store.latest(1500) }
-        val pending = withContext(Dispatchers.IO) {
-            store.pendingTranslationCount() + store.pendingSummaryCount()
-        }
-        val total = withContext(Dispatchers.IO) { store.count() }
-        val translated = withContext(Dispatchers.IO) { store.translatedCount() }
-        _articles.value = list
+    /** Мгновенно показывает новые материалы, не дожидаясь чтения из базы. */
+    private fun publishFresh(fresh: List<ArticleEntity>) {
+        if (fresh.isEmpty()) return
+        val merged = (fresh + _articles.value)
+            .distinctBy { it.id }
+            .sortedByDescending { it.publishedAt }
+        _articles.value = merged
         _sync.update {
             it.copy(
-                translationQueue = pending,
-                totalArticles = total,
-                translatedArticles = translated
+                totalArticles = merged.size,
+                translatedArticles = merged.count { a -> a.hasTranslation || a.lang == "ru" }
+            )
+        }
+        viewModelScope.launch { reload() }
+    }
+
+    private suspend fun reload() {
+        val snapshot = withContext(Dispatchers.IO) {
+            val list = store.latest(1500)
+            Snapshot(
+                list = list,
+                pending = store.pendingTranslationCount() + store.pendingSummaryCount(),
+                total = store.count(),
+                translated = store.translatedCount()
+            )
+        }
+        Log.i(TAG, "reload: articles=${snapshot.list.size} total=${snapshot.total} " +
+            "translated=${snapshot.translated} pending=${snapshot.pending}")
+        // Не затираем уже показанную ленту пустым результатом (например, если база ещё пишется)
+        if (snapshot.list.isNotEmpty() || _articles.value.isEmpty()) {
+            _articles.value = snapshot.list
+        }
+        _sync.update {
+            it.copy(
+                translationQueue = snapshot.pending,
+                totalArticles = snapshot.total.coerceAtLeast(_articles.value.size),
+                translatedArticles = snapshot.translated
             )
         }
     }
+
+    private data class Snapshot(
+        val list: List<ArticleEntity>,
+        val pending: Int,
+        val total: Int,
+        val translated: Int
+    )
 
     fun refresh() {
         if (_sync.value.syncing) return
@@ -180,7 +217,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val result = runCatching {
                 repo.sync(
                     onProgress = { message -> _sync.update { it.copy(status = message) } },
-                    onNewData = { launch { reload() } }
+                    onNewData = { fresh -> publishFresh(fresh) }
                 )
             }
             if (result.isSuccess) {
