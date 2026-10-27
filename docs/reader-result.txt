@@ -1,12 +1,12 @@
 Тап: 540,1200
 READER_RESULT: OK
-10-27 22:47:21.320  3147  5326 I BlueOcean: translate: done=30 of 30
-10-27 22:47:23.602  3147  5863 I BlueOcean: translate: done=30 of 30
-10-27 22:47:25.875  3147  5865 I BlueOcean: translate: done=30 of 30
-10-27 22:47:28.297  3147  5903 I BlueOcean: translate: done=30 of 30
-10-27 22:47:30.891  3147  5863 I BlueOcean: translate: done=30 of 30
-10-27 22:47:33.915  3147  5326 I BlueOcean: translate: done=30 of 30
-10-27 22:47:36.188  3147  5865 I BlueOcean: translate: done=30 of 30
-10-27 22:47:39.831  3147  5855 I BlueOcean: translate: done=30 of 30
-10-27 22:47:52.560  3147  5858 I BlueOcean: translate: done=30 of 30
-10-27 22:48:09.245  3147  5905 I BlueOcean: translate: done=30 of 30
+10-27 23:00:40.469  3352  5330 I BlueOcean: translate: done=30 of 30
+10-27 23:00:40.490  3352  3352 I BlueOcean: reload: articles=851 total=851 translated=691 pending=160
+10-27 23:00:44.041  3352  5704 I BlueOcean: translate: done=30 of 30
+10-27 23:00:44.065  3352  3352 I BlueOcean: reload: articles=851 total=851 translated=721 pending=130
+10-27 23:00:46.975  3352  5417 I BlueOcean: translate: done=30 of 30
+10-27 23:00:46.997  3352  3352 I BlueOcean: reload: articles=851 total=851 translated=751 pending=100
+10-27 23:01:03.284  3352  5420 I BlueOcean: translate: done=30 of 30
+10-27 23:01:03.306  3352  3352 I BlueOcean: reload: articles=851 total=851 translated=781 pending=70
+10-27 23:01:22.408  3352  5418 I BlueOcean: translate: done=30 of 30
+10-27 23:01:22.431  3352  3352 I BlueOcean: reload: articles=851 total=851 translated=811 pending=40

@@ -1,17 +1,26 @@
-PID: 3147
+PID: 3352
 RESULT: APP_ALIVE
-10-27 22:44:09.246   524   555 I ActivityManager: Start proc 3147:by.blueocean.news/u0a192 for next-top-activity {by.blueocean.news/by.blueocean.news.MainActivity}
-10-27 22:44:12.818   524   544 I ActivityTaskManager: Displayed by.blueocean.news/.MainActivity for user 0: +4s204ms
+10-27 22:57:11.173   525   553 I ActivityManager: Start proc 3352:by.blueocean.news/u0a192 for next-top-activity {by.blueocean.news/by.blueocean.news.MainActivity}
+10-27 22:57:15.945   525   542 I ActivityTaskManager: Displayed by.blueocean.news/.MainActivity for user 0: +4s996ms
 --- логи приложения ---
-10-27 22:44:26.891  1449  3851 W gle.android.gms: Long monitor contention with owner OkHttpClientTransport (3844) at eofz eoel.f()(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0) waiters=1 in void eoel.e(java.lang.Runnable) for 668ms
-10-27 22:44:26.892  1449  3847 W gle.android.gms: Long monitor contention with owner OkHttpClientTransport (3844) at eofz eoel.f()(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0) waiters=4 in void eoel.e(java.lang.Runnable) for 573ms
-10-27 22:44:26.892  1449  3843 W gle.android.gms: Long monitor contention with owner OkHttpClientTransport (3844) at eofz eoel.f()(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0) waiters=5 in void eoel.e(java.lang.Runnable) for 573ms
-10-27 22:44:26.892  1449  3842 W gle.android.gms: Long monitor contention with owner OkHttpClientTransport (3844) at eofz eoel.f()(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0) waiters=6 in void eoel.e(java.lang.Runnable) for 567ms
-10-27 22:44:26.892  1449  3631 W gle.android.gms: Long monitor contention with owner OkHttpClientTransport (3844) at eofz eoel.f()(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0) waiters=7 in void eoel.e(java.lang.Runnable) for 554ms
-10-27 22:44:26.892  1449  3859 W gle.android.gms: Long monitor contention with owner OkHttpClientTransport (3844) at eofz eoel.f()(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0) waiters=10 in void eoel.e(java.lang.Runnable) for 241ms
-10-27 22:44:26.893  1449  3845 W gle.android.gms: Long monitor contention with owner OkHttpClientTransport (3844) at eofz eoel.f()(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0) waiters=0 in void eoel.e(java.lang.Runnable) for 711ms
-10-27 22:44:26.893  1449  3846 W gle.android.gms: Long monitor contention with owner OkHttpClientTransport (3844) at eofz eoel.f()(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0) waiters=2 in void eoel.e(java.lang.Runnable) for 661ms
-10-27 22:44:26.894  1449  3848 W gle.android.gms: Long monitor contention with owner OkHttpClientTransport (3844) at eofz eoel.f()(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0) waiters=3 in void eoel.e(java.lang.Runnable) for 582ms
-10-27 22:44:26.894  1449  3849 W gle.android.gms: Long monitor contention with owner OkHttpClientTransport (3844) at eofz eoel.f()(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0) waiters=8 in void eoel.e(java.lang.Runnable) for 244ms
-10-27 22:44:29.653  1449  3402 W gle.android.gms: Long monitor contention with owner OkHttpClientTransport (3844) at void eoes.h(int, enmr, enrt, boolean, eogz, enks)(:com.google.android.gms@231818047@23.18.18 (190800-535401451):6) waiters=0 in void eoek.a(enmr) for 342ms
-10-27 22:44:55.670  1449  3797 D LT_OkHttpChannelBuilder: Using Spatula header keyless authentication.
+10-27 22:57:17.022  1460  3562 W gle.android.gms: Long monitor contention with owner OkHttpClientTransport (3570) at eofz eoel.f()(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0) waiters=3 in void eoel.e(java.lang.Runnable) for 370ms
+10-27 22:57:17.027  1460  3568 W gle.android.gms: Long monitor contention with owner OkHttpClientTransport (3570) at eofz eoel.f()(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0) waiters=4 in void eoel.e(java.lang.Runnable) for 375ms
+10-27 22:57:17.032  1460  3564 W gle.android.gms: Long monitor contention with owner OkHttpClientTransport (3570) at eofz eoel.f()(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0) waiters=7 in void eoel.e(java.lang.Runnable) for 380ms
+10-27 22:57:17.032  1460  3565 W gle.android.gms: Long monitor contention with owner OkHttpClientTransport (3570) at eofz eoel.f()(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0) waiters=8 in void eoel.e(java.lang.Runnable) for 379ms
+10-27 22:57:17.032  1460  3569 W gle.android.gms: Long monitor contention with owner OkHttpClientTransport (3570) at eofz eoel.f()(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0) waiters=1 in void eoel.e(java.lang.Runnable) for 382ms
+10-27 22:57:17.035  1460  3567 W gle.android.gms: Long monitor contention with owner OkHttpClientTransport (3570) at eofz eoel.f()(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0) waiters=6 in void eoel.e(java.lang.Runnable) for 383ms
+10-27 22:57:17.035  1460  3566 W gle.android.gms: Long monitor contention with owner OkHttpClientTransport (3570) at eofz eoel.f()(:com.google.android.gms@231818047@23.18.18 (190800-535401451):0) waiters=9 in void eoel.e(java.lang.Runnable) for 383ms
+10-27 22:57:17.480  3352  3352 I BlueOcean: reload: articles=0 total=0 translated=0 pending=0
+10-27 22:57:17.482  3352  3352 I BlueOcean: reload: articles=0 total=0 translated=0 pending=0
+10-27 22:57:46.733  3352  3587 W .blueocean.news: Long monitor contention with owner OkHttp TaskRunner (3584) at int com.android.org.conscrypt.ConscryptEngineSocket$SSLInputStream.read(byte[], int, int)(ConscryptEngineSocket.java:836) waiters=0 in void com.android.org.conscrypt.ConscryptEngineSocket$SSLInputStream.release() for 273ms
+10-27 22:57:57.016  1460  2907 D LT_OkHttpChannelBuilder: Using Spatula header keyless authentication.
+10-27 22:59:21.116  3352  3464 I BlueOcean: sync: sources_ok=45 failed=15 candidates=876 new=851
+10-27 22:59:21.508  3352  3352 I BlueOcean: reload: articles=851 total=851 translated=139 pending=712
+10-27 22:59:23.789  3352  3466 I BlueOcean: translate: done=12 of 12
+10-27 22:59:25.341  3352  3352 I BlueOcean: reload: articles=851 total=851 translated=151 pending=700
+10-27 22:59:29.641  3352  5330 I BlueOcean: translate: done=30 of 30
+10-27 22:59:29.922  3352  3352 I BlueOcean: reload: articles=851 total=851 translated=181 pending=670
+10-27 22:59:34.172  3352  5335 I BlueOcean: translate: done=30 of 30
+10-27 22:59:34.506  3352  3352 I BlueOcean: reload: articles=851 total=851 translated=211 pending=640
+10-27 22:59:37.388  3352  5418 I BlueOcean: translate: done=30 of 30
+10-27 22:59:37.647  3352  3352 I BlueOcean: reload: articles=851 total=851 translated=241 pending=610

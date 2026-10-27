@@ -1,11 +1,11 @@
 --- вкладки ---
--rw-r--r-- 1 runner runner 254001 Oct 27 22:48 screen-reader.png
--rw-r--r-- 1 runner runner 346467 Oct 27 22:48 screen-Идеи.png
--rw-r--r-- 1 runner runner 243395 Oct 27 22:49 screen-Настройки.png
--rw-r--r-- 1 runner runner 230849 Oct 27 22:48 screen-Тренды.png
+-rw-r--r-- 1 runner runner 252786 Oct 27 23:01 screen-reader.png
+-rw-r--r-- 1 runner runner 345248 Oct 27 23:01 screen-Идеи.png
+-rw-r--r-- 1 runner runner 242739 Oct 27 23:02 screen-Настройки.png
+-rw-r--r-- 1 runner runner 242508 Oct 27 23:01 screen-Тренды.png
 TABS_RESULT: OK
-10-27 22:47:33.915  3147  5326 I BlueOcean: translate: done=30 of 30
-10-27 22:47:36.188  3147  5865 I BlueOcean: translate: done=30 of 30
-10-27 22:47:39.831  3147  5855 I BlueOcean: translate: done=30 of 30
-10-27 22:47:52.560  3147  5858 I BlueOcean: translate: done=30 of 30
-10-27 22:48:09.245  3147  5905 I BlueOcean: translate: done=30 of 30
+10-27 23:00:46.997  3352  3352 I BlueOcean: reload: articles=851 total=851 translated=751 pending=100
+10-27 23:01:03.284  3352  5420 I BlueOcean: translate: done=30 of 30
+10-27 23:01:03.306  3352  3352 I BlueOcean: reload: articles=851 total=851 translated=781 pending=70
+10-27 23:01:22.408  3352  5418 I BlueOcean: translate: done=30 of 30
+10-27 23:01:22.431  3352  3352 I BlueOcean: reload: articles=851 total=851 translated=811 pending=40
