@@ -158,7 +158,7 @@ class TrendsTest {
         val list = listOf(
             article(1, "Робот научился готовить кофе", now, "a"),
             article(2, "Роботы заменили курьеров в доставке", now, "b"),
-            article(3, "Робот-манипулятор на складе", now, "c"),
+            article(3, "Робот на складе", now, "c"),
             article(4, "Робот в прошлой неделе", now - 10 * day, "d")
         )
         val words = Trends.words(list, days = 7, limit = 50)

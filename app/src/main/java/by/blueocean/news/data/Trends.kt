@@ -144,16 +144,19 @@ object Trends {
         "github", "gitlab", "figma", "notion", "slack", "zoom", "tiktok", "youtube",
         "iphone", "ipad", "macbook", "pixel", "gemini", "claude", "llama", "mistral",
         "deepseek", "qwen", "hugging", "pytorch", "tensorflow", "kubernetes", "docker",
-        "postgres", "mysql", "redis", "kafka", "saas", "ai-агент", "ai-агенты"
+        "postgres", "mysql", "redis", "kafka", "saas"
     )
 
     /** Лёгкая нормализация русских окончаний, чтобы «интеллекта» и «интеллект» считались вместе. */
     fun normalize(token: String): String {
         if (token.any { it in '\u0400'..'\u04FF' }) {
             for (ending in ruEndings) {
-                if (token.length - ending.length >= 5 && token.endsWith(ending)) {
-                    return token.dropLast(ending.length)
-                }
+                if (token.length - ending.length < 5 || !token.endsWith(ending)) continue
+                val base = token.dropLast(ending.length)
+                // «данные» → «данны», «акции» → «акци» и подобные обрубки не нужны
+                if (base.length >= 2 && base[base.length - 1] == base[base.length - 2]) continue
+                if (ending.length == 1 && base.last() in "ыи") continue
+                return base
             }
         }
         return token
@@ -169,7 +172,7 @@ object Trends {
         val result = mutableListOf<String>()
         val sb = StringBuilder()
         for (ch in text) {
-            if (ch.isLetter() || ch == '-') {
+            if (ch.isLetter()) {
                 sb.append(ch)
             } else if (sb.isNotEmpty()) {
                 result.add(sb.toString().trim('-'))
