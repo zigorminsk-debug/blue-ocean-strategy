@@ -3,8 +3,8 @@ package by.blueocean.news.data
 import android.net.Uri
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 
@@ -17,7 +17,8 @@ import org.json.JSONArray
  */
 class Translator(private val store: NewsStore) {
 
-    private val rateLock = Mutex()
+    // 3 параллельных запроса: заметно быстрее очереди, но без массовых 429 от сервиса
+    private val rateLock = Semaphore(3)
 
     /**
      * Переводит короткий текст (заголовок, описание).
@@ -34,6 +35,10 @@ class Translator(private val store: NewsStore) {
 
         val limit = if (clean.length > 4500) clean.take(4500) else clean
         var result = google(limit)
+        if (result.isNullOrBlank()) {
+            delay(400)
+            result = google(limit)
+        }
         if (result.isNullOrBlank()) result = myMemory(limit)
         val finalResult = result?.takeIf { it.isNotBlank() } ?: return null
 
@@ -70,14 +75,14 @@ class Translator(private val store: NewsStore) {
     suspend fun isAvailable(): Boolean = google("hello") != null
 
     private suspend fun google(text: String): String? = withContext(Dispatchers.IO) {
-        rateLock.withLock {
+        rateLock.withPermit {
             try {
-                delay(40)
+                delay(60)
                 val url = "https://translate.googleapis.com/translate_a/single" +
                     "?client=gtx&sl=auto&tl=ru&dt=t&q=" + Uri.encode(text)
-                val body = Http.getJson(url) ?: return@withLock null
+                val body = Http.getJson(url) ?: return@withPermit null
                 val root = JSONArray(body)
-                val segments = root.optJSONArray(0) ?: return@withLock null
+                val segments = root.optJSONArray(0) ?: return@withPermit null
                 val sb = StringBuilder()
                 for (i in 0 until segments.length()) {
                     val segment = segments.optJSONArray(i) ?: continue
@@ -91,7 +96,7 @@ class Translator(private val store: NewsStore) {
     }
 
     private suspend fun myMemory(text: String): String? = withContext(Dispatchers.IO) {
-        rateLock.withLock {
+        rateLock.withPermit {
             try {
                 val sb = StringBuilder()
                 for (chunk in splitForApi(text, 450)) {

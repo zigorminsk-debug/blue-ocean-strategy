@@ -128,6 +128,7 @@ object ArticleExtractor {
 
     private fun normalize(text: String): String = text
         .replace('\u00a0', ' ')
+        .replace(SPACED_DIGITS, " ")
         .replace(Regex("\\s+"), " ")
         .trim()
 
@@ -135,4 +136,7 @@ object ArticleExtractor {
     fun readingMinutes(text: String): Int = (text.split(" ").size / 180).coerceAtLeast(1)
 
     private const val MAX_CHARS = 18000
+
+    /** Сноски вида «лесов1,2,3» — отделяем цифры от слова. */
+    private val SPACED_DIGITS = Regex("(?<=[а-яёa-z])(?=\d+([,;]\d+)*[\s.,]|$)")
 }

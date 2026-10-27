@@ -339,6 +339,43 @@ jobs:
               grep -E "BlueOcean" logcat-reader.txt | tail -n 10
             fi
           } | tee reader-result.txt
+
+          # Проверяем остальные вкладки: Тренды и Идеи
+          adb shell input keyevent KEYCODE_BACK
+          sleep 3
+          for TAB in "Тренды" "Идеи" "Настройки"; do
+            adb shell uiautomator dump /sdcard/ui.xml > /dev/null 2>&1
+            adb pull /sdcard/ui.xml ui.xml > /dev/null 2>&1
+            COORDS="$(python3 - "$TAB" <<'PY'
+          import re, sys
+          target = sys.argv[1]
+          try:
+              xml = open('ui.xml', encoding='utf-8').read()
+          except Exception:
+              print("")
+              raise SystemExit
+          for node in re.findall(r'<node[^>]*>', xml):
+              text = re.search(r'text="([^"]*)"', node)
+              bounds = re.search(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', node)
+              if text and bounds and text.group(1) == target:
+                  x1, y1, x2, y2 = map(int, bounds.groups())
+                  print((x1 + x2) // 2, (y1 + y2) // 2)
+                  break
+          PY
+          )"
+            echo "вкладка $TAB: координаты '$COORDS'"
+            if [ -n "$COORDS" ]; then
+              adb shell input tap $COORDS
+              sleep 8
+              adb exec-out screencap -p > "screen-$(echo "$TAB" | tr -d ' ').png"
+            fi
+          done
+          {
+            echo "--- вкладки ---"
+            ls -la screen-*.png
+            if grep -q "FATAL EXCEPTION" logcat-reader.txt; then echo "TABS_RESULT: CRASH"; else echo "TABS_RESULT: OK"; fi
+            grep -E "BlueOcean" logcat-reader.txt | tail -n 5
+          } | tee tabs-result.txt
           exit 0
 
       - name: Сохранить скриншот и логи
@@ -351,6 +388,8 @@ jobs:
             screen.png
             screen-reader.png
             reader-result.txt
+            screen-*.png
+            tabs-result.txt
             emulator.log
             emulator-run.log
             logcat.txt
@@ -368,6 +407,10 @@ jobs:
           cp smoke-result.txt docs/smoke-result.txt 2>/dev/null || true
           if [ -f screen-reader.png ]; then cp screen-reader.png docs/screenshot-reader.png; fi
           if [ -f reader-result.txt ]; then cp reader-result.txt docs/reader-result.txt; fi
+          [ -f "screen-Тренды.png" ] && cp "screen-Тренды.png" docs/screenshot-trends.png
+          [ -f "screen-Идеи.png" ] && cp "screen-Идеи.png" docs/screenshot-ideas.png
+          [ -f "screen-Настройки.png" ] && cp "screen-Настройки.png" docs/screenshot-settings.png
+          if [ -f tabs-result.txt ]; then cp tabs-result.txt docs/tabs-result.txt; fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add docs/ 2>/dev/null || true
