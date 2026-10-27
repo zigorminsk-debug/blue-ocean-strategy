@@ -113,12 +113,14 @@ fun AppRoot(viewModel: AppViewModel, openUpdatesInitially: Boolean = false) {
                         viewModel.setQuery(word)
                         tab = 0
                     },
-                    onOpen = openArticle
+                    onOpen = openArticle,
+                    onTranslate = viewModel::translateArticle
                 )
                 tab == 2 -> IdeasScreen(
                     articles = state.all,
                     onOpen = openArticle,
-                    onToggleSave = viewModel::toggleSaved
+                    onToggleSave = viewModel::toggleSaved,
+                    onTranslate = viewModel::translateArticle
                 )
                 else -> SettingsScreen(
                     settings = settings,

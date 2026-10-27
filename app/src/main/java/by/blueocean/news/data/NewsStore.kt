@@ -158,7 +158,7 @@ class NewsStore(context: Context) : SQLiteOpenHelper(context, DB_NAME, null, DB_
             """
             SELECT * FROM articles
             WHERE lang <> 'ru' AND (titleRu = '' OR (summary <> '' AND summaryRu = ''))
-            ORDER BY publishedAt DESC
+            ORDER BY (score >= 8) DESC, publishedAt DESC
             LIMIT ?
             """.trimIndent(),
             arrayOf(limit.toString())

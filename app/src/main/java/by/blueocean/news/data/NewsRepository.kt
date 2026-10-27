@@ -6,7 +6,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 
@@ -157,21 +160,30 @@ class NewsRepository(
             Log.i(TAG, "translate: queue empty")
             return@withContext 0
         }
-        var count = 0
-        var consecutiveFailures = 0
-        for ((index, article) in pending.withIndex()) {
-            val ok = runCatching { translateArticle(article) }.getOrDefault(false)
-            if (ok) {
-                count++
-                consecutiveFailures = 0
-            } else {
-                consecutiveFailures++
-                if (consecutiveFailures >= 3) break
+
+        var done = 0
+        val lock = Mutex()
+
+        // Несколько материалов переводим параллельно: заголовок и описание —
+        // отдельные запросы, поэтому очередь из сотен новостей уходит за минуты.
+        coroutineScope {
+            pending.forEach { article ->
+                launch(Dispatchers.IO) {
+                    val ok = runCatching { translateArticle(article) }.getOrDefault(false)
+                    lock.withLock {
+                        if (ok) done++
+                        onProgress(done, pending.size)
+                    }
+                }
             }
-            onProgress(index + 1, pending.size)
         }
-        Log.i(TAG, "translate: done=$count of ${pending.size}")
-        count
+
+        if (done == 0) {
+            Log.w(TAG, "translate: all ${pending.size} attempts failed — service unavailable")
+            return@withContext 0
+        }
+        Log.i(TAG, "translate: done=$done of ${pending.size}")
+        done
     }
 
     suspend fun translateOne(articleId: Long): Boolean = withContext(Dispatchers.IO) {

@@ -33,7 +33,8 @@ import by.blueocean.news.data.Trends
 fun IdeasScreen(
     articles: List<ArticleEntity>,
     onOpen: (ArticleEntity) -> Unit,
-    onToggleSave: (ArticleEntity) -> Unit
+    onToggleSave: (ArticleEntity) -> Unit,
+    onTranslate: (ArticleEntity) -> Unit
 ) {
     val stats = remember(articles) { Trends.directionStats(articles, days = 21) }
     val opportunities = remember(articles) { Trends.opportunities(articles, minScore = 8, limit = 25) }
@@ -101,7 +102,12 @@ fun IdeasScreen(
             ArticleCard(
                 article = article,
                 onClick = { onOpen(article) },
-                onToggleSave = { onToggleSave(article) }
+                onToggleSave = { onToggleSave(article) },
+                onTranslate = if (!article.hasTranslation && article.lang != "ru") {
+                    { onTranslate(article) }
+                } else {
+                    null
+                }
             )
         }
 

@@ -39,7 +39,8 @@ import by.blueocean.news.data.Trends
 fun TrendsScreen(
     articles: List<ArticleEntity>,
     onKeyword: (String) -> Unit,
-    onOpen: (ArticleEntity) -> Unit
+    onOpen: (ArticleEntity) -> Unit,
+    onTranslate: (ArticleEntity) -> Unit
 ) {
     val words = remember(articles) { Trends.words(articles, days = 7, limit = 48) }
     val hot = remember(articles) { articles.filter { it.publishedAt > System.currentTimeMillis() - 3 * 86_400_000L } }
@@ -114,7 +115,12 @@ fun TrendsScreen(
             ArticleCard(
                 article = article,
                 onClick = { onOpen(article) },
-                onToggleSave = { }
+                onToggleSave = { },
+                onTranslate = if (!article.hasTranslation && article.lang != "ru") {
+                    { onTranslate(article) }
+                } else {
+                    null
+                }
             )
         }
     }

@@ -222,7 +222,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 _sync.update {
                     it.copy(translating = true, status = "Перевод: осталось $pending…")
                 }
-                val done = runCatching { repo.translatePending(15) }.getOrDefault(0)
+                val done = runCatching { repo.translatePending(30) }.getOrDefault(0)
                 if (done > 0) {
                     failures = 0
                 } else {
