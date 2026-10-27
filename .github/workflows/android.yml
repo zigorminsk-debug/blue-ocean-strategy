@@ -21,7 +21,7 @@ jobs:
   build:
     name: Сборка подписанного APK
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -36,7 +36,25 @@ jobs:
           java-version: "17"
 
       - name: Android SDK
-        uses: android-actions/setup-android@v3
+        run: |
+          set +e
+          echo "ANDROID_HOME=${ANDROID_HOME:-unset}"
+          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-unset}"
+          if [ -z "${ANDROID_HOME:-}" ] && [ -d /usr/local/lib/android/sdk ]; then
+            echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+            echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+          fi
+          SDKM="$(command -v sdkmanager)"
+          if [ -z "$SDKM" ]; then
+            SDKM="$(find /usr/local/lib/android "${ANDROID_HOME:-/nonexistent}" -name sdkmanager -type f 2>/dev/null | head -n1)"
+          fi
+          echo "sdkmanager: $SDKM"
+          if [ -n "$SDKM" ]; then
+            yes | "$SDKM" --licenses >/dev/null 2>&1
+            "$SDKM" "platform-tools" "platforms;android-34" "build-tools;34.0.0" 2>&1 | tail -n 5
+          fi
+          ls "${ANDROID_HOME:-/usr/local/lib/android/sdk}" 2>/dev/null | head -n 20
+          exit 0
 
       - name: Gradle cache
         uses: gradle/actions/setup-gradle@v4
@@ -52,16 +70,51 @@ jobs:
           echo "Версия: ${NAME} (versionCode ${CODE})"
 
       - name: Сборка release APK (постоянный ключ)
+        id: build
+        continue-on-error: true
         env:
           VERSION_CODE: ${{ steps.ver.outputs.code }}
           VERSION_NAME: ${{ steps.ver.outputs.name }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'BlueOcean2026Strong!' }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'blueocean' }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'BlueOcean2026Strong!' }}
-        run: ./gradlew :app:assembleRelease --stacktrace --no-daemon
+        run: |
+          set -o pipefail
+          ./gradlew :app:assembleRelease --stacktrace --no-daemon 2>&1 | tee build.log
+
+      - name: Лог ошибки в комментарий коммита
+        if: steps.build.outcome == 'failure'
+        run: |
+          tail -n 400 build.log > build-error.log
+          python3 - <<'PY'
+          import json, os, urllib.request
+          text = open('build-error.log', encoding='utf-8', errors='replace').read()[-60000:]
+          payload = {"body": "**Сборка не удалась**\n```\n" + text + "\n```"}
+          repo = os.environ['GITHUB_REPOSITORY']
+          sha = os.environ['GITHUB_SHA']
+          req = urllib.request.Request(
+              f"https://api.github.com/repos/{repo}/commits/{sha}/comments",
+              data=json.dumps(payload).encode(),
+              headers={
+                  "Authorization": "Bearer " + os.environ['GITHUB_TOKEN'],
+                  "Accept": "application/vnd.github+json",
+                  "User-Agent": "ci",
+              },
+              method="POST",
+          )
+          try:
+              urllib.request.urlopen(req).read()
+              print("comment posted")
+          except Exception as e:
+              print("failed to post:", e)
+          PY
+          exit 1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Проверка подписи и подготовка файла
         id: apk
+        if: steps.build.outcome == 'success'
         run: |
           set -euo pipefail
           APK="app/build/outputs/apk/release/app-release.apk"
@@ -81,6 +134,7 @@ jobs:
           echo "APK: $OUT ($SIZE), sha256=$SHA"
 
       - name: Артефакт сборки
+        if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: BlueOceanIT-${{ steps.ver.outputs.name }}
@@ -90,7 +144,7 @@ jobs:
           retention-days: 30
 
       - name: Публикация релиза (main или ручной запуск)
-        if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && inputs.publish_release)
+        if: steps.build.outcome == 'success' && (github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && inputs.publish_release))
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.ver.outputs.name }}
@@ -113,7 +167,7 @@ jobs:
             сверяет подпись с установленной и запускает установщик.
 
       - name: Драфт-сборка для ветки
-        if: github.ref != 'refs/heads/main' && github.event_name == 'push'
+        if: steps.build.outcome == 'success' && github.ref != 'refs/heads/main' && github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: dev-build
