@@ -1,11 +1,13 @@
-PID: 3463
+PID: 2998
 RESULT: APP_ALIVE
-10-27 21:43:08.178   522   550 I ActivityManager: Start proc 3463:by.blueocean.news/u0a192 for next-top-activity {by.blueocean.news/by.blueocean.news.MainActivity}
-10-27 21:43:13.344   522   539 I ActivityTaskManager: Displayed by.blueocean.news/.MainActivity for user 0: +5s836ms
+10-27 21:54:33.493   522   551 I ActivityManager: Start proc 2998:by.blueocean.news/u0a192 for next-top-activity {by.blueocean.news/by.blueocean.news.MainActivity}
+10-27 21:54:37.480   522   539 I ActivityTaskManager: Displayed by.blueocean.news/.MainActivity for user 0: +4s49ms
 --- логи приложения ---
-10-27 21:43:30.313  1451  2920 D LT_OkHttpChannelBuilder: Using Spatula header keyless authentication.
-10-27 21:44:21.618  3463  3574 I BlueOcean: sync: sources_ok=46 failed=14 candidates=896 new=872
-10-27 21:44:33.579  3463  3576 I BlueOcean: translate: done=12 of 12
-10-27 21:44:50.769  3463  3576 I BlueOcean: translate: done=15 of 15
-10-27 21:45:19.440  3463  3574 I BlueOcean: translate: done=15 of 15
-10-27 21:45:43.165  3463  3574 I BlueOcean: translate: done=15 of 15
+10-27 21:54:50.144  1452  1491 W gle.android.gms: Long monitor contention with owner OkHttpClientTransport (3986) at void eoek.c(enks)(:com.google.android.gms@231818047@23.18.18 (190800-535401451):23) waiters=0 in void eoel.e(java.lang.Runnable) for 512ms
+10-27 21:54:50.144  1452  3214 W gle.android.gms: Long monitor contention with owner OkHttpClientTransport (3986) at void eoek.c(enks)(:com.google.android.gms@231818047@23.18.18 (190800-535401451):23) waiters=1 in void eoel.e(java.lang.Runnable) for 506ms
+10-27 21:55:09.163  1452  2132 D LT_OkHttpChannelBuilder: Using Spatula header keyless authentication.
+10-27 21:55:50.917  2998  3277 I BlueOcean: sync: sources_ok=45 failed=15 candidates=876 new=853
+10-27 21:55:59.581  2998  5180 I BlueOcean: translate: done=12 of 12
+10-27 21:56:19.273  2998  3329 I BlueOcean: translate: done=30 of 30
+10-27 21:56:38.689  2998  5182 I BlueOcean: translate: done=30 of 30
+10-27 21:56:54.443  2998  5705 I BlueOcean: translate: done=30 of 30
