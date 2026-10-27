@@ -1,30 +1,27 @@
-PID: 3248
+PID: 3293
 RESULT: APP_ALIVE
-10-27 23:10:25.889   524   552 I ActivityManager: Start proc 3248:by.blueocean.news/u0a192 for next-top-activity {by.blueocean.news/by.blueocean.news.MainActivity}
-10-27 23:10:29.556   524   541 I ActivityTaskManager: Displayed by.blueocean.news/.MainActivity for user 0: +3s150ms
+10-27 23:39:51.332   520   549 I ActivityManager: Start proc 3293:by.blueocean.news/u0a192 for next-top-activity {by.blueocean.news/by.blueocean.news.MainActivity}
+10-27 23:39:54.006   520   537 I ActivityTaskManager: Displayed by.blueocean.news/.MainActivity for user 0: +2s925ms
 --- логи приложения ---
-10-27 23:11:37.066  3248  3248 I BlueOcean: reload: articles=871 total=871 translated=151 pending=720
-10-27 23:11:40.915  3248  5361 I BlueOcean: translate: done=30 of 30
-10-27 23:11:41.178  3248  3248 I BlueOcean: reload: articles=871 total=871 translated=181 pending=690
-10-27 23:11:45.575  3248  5391 I BlueOcean: translate: done=30 of 30
-10-27 23:11:45.746  3248  3248 I BlueOcean: reload: articles=871 total=871 translated=211 pending=660
-10-27 23:11:59.665  3248  5391 I BlueOcean: translate: done=30 of 30
-10-27 23:12:00.874  3248  3248 I BlueOcean: reload: articles=871 total=871 translated=241 pending=630
-10-27 23:12:08.032  3248  3370 I BlueOcean: translate: done=30 of 30
-10-27 23:12:08.225  3248  3248 I BlueOcean: reload: articles=871 total=871 translated=271 pending=600
-10-27 23:12:13.520  3248  3375 I BlueOcean: translate: done=30 of 30
-10-27 23:12:13.773  3248  3248 I BlueOcean: reload: articles=871 total=871 translated=301 pending=570
-10-27 23:12:19.419  3248  3367 I BlueOcean: translate: done=30 of 30
-10-27 23:12:20.424  3248  3248 I BlueOcean: reload: articles=871 total=871 translated=331 pending=540
-10-27 23:12:24.666  3248  5359 I BlueOcean: translate: done=30 of 30
-10-27 23:12:25.010  3248  3248 I BlueOcean: reload: articles=871 total=871 translated=361 pending=510
-10-27 23:12:28.690  3248  3371 I BlueOcean: translate: done=30 of 30
-10-27 23:12:29.149  3248  3248 I BlueOcean: reload: articles=871 total=871 translated=391 pending=480
-10-27 23:12:35.369  3248  5355 I BlueOcean: translate: done=30 of 30
-10-27 23:12:35.635  3248  3248 I BlueOcean: reload: articles=871 total=871 translated=421 pending=450
-10-27 23:12:39.276  3248  5388 I BlueOcean: translate: done=30 of 30
-10-27 23:12:39.698  3248  3248 I BlueOcean: reload: articles=871 total=871 translated=451 pending=420
-10-27 23:12:43.513  3248  5282 I BlueOcean: translate: done=30 of 30
-10-27 23:12:43.821  3248  3248 I BlueOcean: reload: articles=871 total=871 translated=481 pending=390
-10-27 23:12:58.628  3248  5389 I BlueOcean: translate: done=30 of 30
-10-27 23:12:58.821  3248  3248 I BlueOcean: reload: articles=871 total=871 translated=511 pending=360
+10-27 23:39:54.473  3293  3491 W .blueocean.news: Long monitor contention with owner OkHttp www.technologyreview.com onSettings (3483) at void okhttp3.internal.concurrent.TaskRunner$runnable$1.run()(TaskRunner.kt:58) waiters=1 in void okhttp3.internal.concurrent.TaskRunner$runnable$1.run() for 312ms
+10-27 23:39:54.478  3293  3488 W .blueocean.news: Long monitor contention with owner OkHttp www.technologyreview.com onSettings (3483) at void okhttp3.internal.concurrent.TaskRunner$runnable$1.run()(TaskRunner.kt:58) waiters=2 in void okhttp3.internal.concurrent.TaskRunner$runnable$1.run() for 318ms
+10-27 23:39:54.478  3293  3383 W .blueocean.news: Long monitor contention with owner OkHttp www.technologyreview.com onSettings (3483) at void okhttp3.internal.concurrent.TaskRunner$runnable$1.run()(TaskRunner.kt:58) waiters=3 in void okhttp3.internal.concurrent.TaskQueue.schedule(okhttp3.internal.concurrent.Task, long) for 308ms
+10-27 23:39:54.566  3293  3293 I BlueOcean: reload: articles=0 total=0 translated=0 pending=0
+10-27 23:39:55.260  3293  3293 I BlueOcean: reload: articles=0 total=0 translated=0 pending=0
+10-27 23:39:59.958  3293  3866 W .blueocean.news: Long monitor contention with owner OkHttp techwireasia.com (3576) at void okhttp3.internal.concurrent.TaskRunner$runnable$1.run()(TaskRunner.kt:58) waiters=1 in void okhttp3.internal.concurrent.TaskRunner$runnable$1.run() for 784ms
+10-27 23:39:59.962  3293  3423 W .blueocean.news: Long monitor contention with owner OkHttp techwireasia.com (3576) at void okhttp3.internal.concurrent.TaskRunner$runnable$1.run()(TaskRunner.kt:58) waiters=2 in void okhttp3.internal.concurrent.TaskQueue.schedule(okhttp3.internal.concurrent.Task, long) for 787ms
+10-27 23:39:59.962  3293  3457 W .blueocean.news: Long monitor contention with owner OkHttp techwireasia.com (3576) at void okhttp3.internal.concurrent.TaskRunner$runnable$1.run()(TaskRunner.kt:58) waiters=6 in void okhttp3.internal.concurrent.TaskQueue.schedule(okhttp3.internal.concurrent.Task, long) for 656ms
+10-27 23:39:59.963  3293  3483 W .blueocean.news: Long monitor contention with owner OkHttp techwireasia.com (3576) at void okhttp3.internal.concurrent.TaskRunner$runnable$1.run()(TaskRunner.kt:58) waiters=3 in void okhttp3.internal.concurrent.TaskQueue.schedule(okhttp3.internal.concurrent.Task, long) for 787ms
+10-27 23:39:59.964  3293  3484 W .blueocean.news: Long monitor contention with owner OkHttp techwireasia.com (3576) at void okhttp3.internal.concurrent.TaskRunner$runnable$1.run()(TaskRunner.kt:58) waiters=5 in void okhttp3.internal.concurrent.TaskRunner.runTask(okhttp3.internal.concurrent.Task) for 783ms
+10-27 23:39:59.976  3293  3482 W .blueocean.news: Long monitor contention with owner OkHttp techwireasia.com (3576) at void okhttp3.internal.concurrent.TaskRunner$runnable$1.run()(TaskRunner.kt:58) waiters=0 in void okhttp3.internal.concurrent.TaskRunner$runnable$1.run() for 804ms
+10-27 23:39:59.981  3293  3400 W .blueocean.news: Long monitor contention with owner OkHttp techwireasia.com (3576) at void okhttp3.internal.concurrent.TaskRunner$runnable$1.run()(TaskRunner.kt:58) waiters=7 in void okhttp3.internal.concurrent.TaskQueue.schedule(okhttp3.internal.concurrent.Task, long) for 545ms
+10-27 23:39:59.994  3293  3450 W .blueocean.news: Long monitor contention with owner OkHttp techwireasia.com (3576) at void okhttp3.internal.concurrent.TaskRunner$runnable$1.run()(TaskRunner.kt:58) waiters=4 in void okhttp3.internal.concurrent.TaskQueue.schedule(okhttp3.internal.concurrent.Task, long) for 816ms
+10-27 23:40:35.088  1460  3667 D LT_OkHttpChannelBuilder: Using Spatula header keyless authentication.
+10-27 23:41:24.795  3293  3401 I BlueOcean: sync: sources_ok=45 failed=15 candidates=876 new=851
+10-27 23:41:25.198  3293  3293 I BlueOcean: reload: articles=851 total=851 translated=139 pending=712
+10-27 23:41:30.887  3293  5460 I BlueOcean: translate: done=12 of 12
+10-27 23:41:31.992  3293  3293 I BlueOcean: reload: articles=851 total=851 translated=151 pending=700
+10-27 23:41:50.237  3293  5461 I BlueOcean: translate: done=30 of 30
+10-27 23:41:50.521  3293  3293 I BlueOcean: reload: articles=851 total=851 translated=181 pending=670
+10-27 23:42:12.608  3293  5453 I BlueOcean: translate: done=30 of 30
+10-27 23:42:13.778  3293  3293 I BlueOcean: reload: articles=851 total=851 translated=211 pending=640
