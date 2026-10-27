@@ -150,7 +150,7 @@ object FeedParser {
         .replace(Regex("\\s+"), " ")
         .trim()
 
-    private val SPACED_DIGITS = Regex("(?<=[а-яёa-z])(?=\d+([,;]\d+)*[\s.,]|$)")
+    private val SPACED_DIGITS = Regex("""(?<=[а-яёa-z])(?=\d+([,;]\d+)*[\s.,]|$)""")
 
     fun parseDate(raw: String): Long {
         val value = raw.trim()

@@ -138,5 +138,5 @@ object ArticleExtractor {
     private const val MAX_CHARS = 18000
 
     /** Сноски вида «лесов1,2,3» — отделяем цифры от слова. */
-    private val SPACED_DIGITS = Regex("(?<=[а-яёa-z])(?=\d+([,;]\d+)*[\s.,]|$)")
+    private val SPACED_DIGITS = Regex("""(?<=[а-яёa-z])(?=\d+([,;]\d+)*[\s.,]|$)""")
 }
