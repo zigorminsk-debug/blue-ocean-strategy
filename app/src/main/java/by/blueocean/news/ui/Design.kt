@@ -118,7 +118,7 @@ private fun colorsFor(style: AppButtonStyle, enabled: Boolean): ButtonColors {
                 disabledContainer
             },
             content = disabledContent,
-            border = base.border?.copy(color = scheme.outline.copy(alpha = 0.3f))
+            border = base.border?.let { BorderStroke(it.width, scheme.outline.copy(alpha = 0.3f)) }
         )
     }
 }
@@ -194,14 +194,15 @@ fun AppButtonRow(
     modifier: Modifier = Modifier,
     horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(8.dp),
     verticalArrangement: Arrangement.Vertical = Arrangement.spacedBy(8.dp),
-    content: @Composable androidx.compose.foundation.layout.FlowRowScope.() -> Unit
+    content: @Composable () -> Unit
 ) {
     FlowRow(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = horizontalArrangement,
-        verticalArrangement = verticalArrangement,
-        content = content
-    )
+        verticalArrangement = verticalArrangement
+    ) {
+        content()
+    }
 }
 
 /** Иконочная кнопка одного вида (закладка, обновление, размер шрифта и т.п.). */
