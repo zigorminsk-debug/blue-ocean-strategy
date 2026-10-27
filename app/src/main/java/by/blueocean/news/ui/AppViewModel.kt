@@ -1,0 +1,310 @@
+package by.blueocean.news.ui
+
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import by.blueocean.news.BuildConfig
+import by.blueocean.news.data.AppPrefs
+import by.blueocean.news.data.ArticleEntity
+import by.blueocean.news.data.NewsRepository
+import by.blueocean.news.data.NewsStore
+import by.blueocean.news.data.Source
+import by.blueocean.news.data.Sources
+import by.blueocean.news.update.UpdateManager
+import by.blueocean.news.work.WorkScheduler
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.util.Locale
+
+data class Filters(
+    val query: String = "",
+    val category: String = "Все",
+    val savedOnly: Boolean = false
+)
+
+data class SyncState(
+    val syncing: Boolean = false,
+    val status: String = "",
+    val lastSync: Long = 0L,
+    val translationQueue: Int = 0
+)
+
+data class UpdateState(
+    val checking: Boolean = false,
+    val info: UpdateManager.UpdateInfo? = null,
+    val downloading: Boolean = false,
+    val progress: Int = 0,
+    val message: String? = null,
+    val error: String? = null
+)
+
+data class SettingsState(
+    val autoUpdate: Boolean = true,
+    val autoInstall: Boolean = true,
+    val notifications: Boolean = true,
+    val wifiOnly: Boolean = false,
+    val syncIntervalHours: Int = 3,
+    val maxItemsPerSource: Int = 25,
+    val disabledSources: Set<String> = emptySet()
+)
+
+data class UiState(
+    val articles: List<ArticleEntity> = emptyList(),
+    val all: List<ArticleEntity> = emptyList(),
+    val total: Int = 0,
+    val filters: Filters = Filters(),
+    val sync: SyncState = SyncState()
+)
+
+class AppViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val prefs = AppPrefs(application)
+    private val store = NewsStore.get(application)
+    private val repo = NewsRepository.get(application)
+    private val updateManager = UpdateManager(application)
+
+    private val _articles = MutableStateFlow<List<ArticleEntity>>(emptyList())
+    private val _filters = MutableStateFlow(Filters())
+    private val _sync = MutableStateFlow(SyncState(lastSync = prefs.lastSyncAt, status = prefs.lastSyncInfo))
+    private val _update = MutableStateFlow(UpdateState())
+    private val _settings = MutableStateFlow(loadSettings())
+
+    val filters: StateFlow<Filters> = _filters.asStateFlow()
+    val sync: StateFlow<SyncState> = _sync.asStateFlow()
+    val update: StateFlow<UpdateState> = _update.asStateFlow()
+    val settings: StateFlow<SettingsState> = _settings.asStateFlow()
+
+    val sources: List<Source> = Sources.ALL
+    val versionName: String = BuildConfig.VERSION_NAME
+    val versionCode: Int = BuildConfig.VERSION_CODE
+
+    val uiState: StateFlow<UiState> = combine(
+        _articles,
+        _filters,
+        _sync
+    ) { list, filters, sync ->
+        val query = filters.query.trim().lowercase(Locale.ROOT)
+        val filtered = list.filter { article ->
+            val categoryOk = filters.category == "Все" || article.category == filters.category
+            val savedOk = !filters.savedOnly || article.isSaved
+            val queryOk = query.isEmpty() ||
+                article.displayTitle.lowercase(Locale.ROOT).contains(query) ||
+                article.displaySummary.lowercase(Locale.ROOT).contains(query) ||
+                article.sourceName.lowercase(Locale.ROOT).contains(query)
+            categoryOk && savedOk && queryOk
+        }
+        UiState(
+            articles = filtered,
+            all = list,
+            total = list.size,
+            filters = filters,
+            sync = sync
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState())
+
+    init {
+        WorkScheduler.scheduleSync(application, prefs.syncIntervalHours, prefs.wifiOnly)
+        WorkScheduler.scheduleUpdateCheck(application)
+        viewModelScope.launch { reload() }
+        val stale = System.currentTimeMillis() - prefs.lastSyncAt > 20 * 60 * 1000L
+        if (stale) refresh()
+        if (prefs.autoUpdate) checkUpdate(manual = false)
+    }
+
+    private fun loadSettings(): SettingsState = SettingsState(
+        autoUpdate = prefs.autoUpdate,
+        autoInstall = prefs.autoInstall,
+        notifications = prefs.notifications,
+        wifiOnly = prefs.wifiOnly,
+        syncIntervalHours = prefs.syncIntervalHours,
+        maxItemsPerSource = prefs.maxItemsPerSource,
+        disabledSources = prefs.disabledSources()
+    )
+
+    private suspend fun reload() {
+        val list = withContext(Dispatchers.IO) { store.latest(1500) }
+        val pending = withContext(Dispatchers.IO) { store.pendingTranslationCount() }
+        _articles.value = list
+        _sync.update { it.copy(translationQueue = pending) }
+    }
+
+    fun refresh() {
+        if (_sync.value.syncing) return
+        viewModelScope.launch {
+            _sync.update { it.copy(syncing = true, status = "Обновляю ленту…") }
+            val result = runCatching { repo.sync { message -> _sync.update { it.copy(status = message) } } }
+            if (result.isSuccess) {
+                val syncResult = result.getOrThrow()
+                _sync.update {
+                    it.copy(
+                        syncing = false,
+                        status = syncResult.message,
+                        lastSync = System.currentTimeMillis()
+                    )
+                }
+                reload()
+                if (syncResult.inserted > 0) {
+                    launch { runCatching { repo.translatePending(20) }; reload() }
+                }
+            } else {
+                _sync.update {
+                    it.copy(
+                        syncing = false,
+                        status = "Ошибка обновления: ${result.exceptionOrNull()?.message ?: "нет сети"}"
+                    )
+                }
+                reload()
+            }
+        }
+    }
+
+    fun translateMore() {
+        viewModelScope.launch {
+            _sync.update { it.copy(status = "Перевожу отложенные материалы…") }
+            val count = runCatching { repo.translatePending(30) }.getOrDefault(0)
+            _sync.update { it.copy(status = "Переведено: $count") }
+            reload()
+        }
+    }
+
+    fun setQuery(value: String) = _filters.update { it.copy(query = value) }
+
+    fun setCategory(value: String) = _filters.update { it.copy(category = value) }
+
+    fun toggleSavedOnly() = _filters.update { it.copy(savedOnly = !it.savedOnly) }
+
+    fun markRead(article: ArticleEntity) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { store.markRead(article.id) }
+            reload()
+        }
+    }
+
+    fun toggleSaved(article: ArticleEntity) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { store.setSaved(article.id, !article.isSaved) }
+            reload()
+        }
+    }
+
+    // ─────────────── Обновления ───────────────
+
+    fun checkUpdate(manual: Boolean = true) {
+        if (_update.value.checking || _update.value.downloading) return
+        viewModelScope.launch {
+            _update.update { it.copy(checking = true, message = null, error = null) }
+            val info = updateManager.check()
+            val skipped = info != null && prefs.skippedVersion == info.version
+            _update.update {
+                it.copy(
+                    checking = false,
+                    info = if (skipped) null else info,
+                    message = when {
+                        info != null && !skipped -> "Доступна версия ${info.version}"
+                        manual && info == null -> "У вас последняя версия ($versionName)"
+                        else -> null
+                    }
+                )
+            }
+        }
+    }
+
+    fun skipVersion(version: String) {
+        prefs.skippedVersion = version
+        _update.update { it.copy(info = null, message = null) }
+    }
+
+    fun downloadAndInstall() {
+        val info = _update.value.info ?: return
+        if (_update.value.downloading) return
+        viewModelScope.launch {
+            _update.update { it.copy(downloading = true, progress = 0, error = null) }
+            val file = updateManager.download(info) { progress ->
+                _update.update { it.copy(progress = progress) }
+            }
+            if (file == null) {
+                _update.update { it.copy(downloading = false, error = "Не удалось скачать APK. Проверьте сеть.") }
+                return@launch
+            }
+            if (!updateManager.verifyApk(file)) {
+                _update.update {
+                    it.copy(
+                        downloading = false,
+                        error = "Подпись APK не совпадает с установленной — установка отменена"
+                    )
+                }
+                return@launch
+            }
+            _update.update { it.copy(downloading = false, progress = 100, message = "Устанавливаю…") }
+            val started = updateManager.install(file)
+            if (!started) {
+                _update.update {
+                    it.copy(
+                        message = "Разрешите установку из этого источника и нажмите «Установить» ещё раз"
+                    )
+                }
+            }
+        }
+    }
+
+    fun dismissUpdateBanner() {
+        _update.update { it.copy(info = null, message = null, error = null) }
+    }
+
+    // ─────────────── Настройки ───────────────
+
+    fun setAutoUpdate(value: Boolean) {
+        prefs.autoUpdate = value
+        _settings.update { it.copy(autoUpdate = value) }
+        if (value) checkUpdate(manual = false)
+    }
+
+    fun setAutoInstall(value: Boolean) {
+        prefs.autoInstall = value
+        _settings.update { it.copy(autoInstall = value) }
+    }
+
+    fun setNotifications(value: Boolean) {
+        prefs.notifications = value
+        _settings.update { it.copy(notifications = value) }
+    }
+
+    fun setWifiOnly(value: Boolean) {
+        prefs.wifiOnly = value
+        _settings.update { it.copy(wifiOnly = value) }
+        WorkScheduler.scheduleSync(getApplication(), prefs.syncIntervalHours, value)
+    }
+
+    fun setSyncInterval(hours: Int) {
+        prefs.syncIntervalHours = hours
+        _settings.update { it.copy(syncIntervalHours = hours) }
+        WorkScheduler.scheduleSync(getApplication(), hours, prefs.wifiOnly)
+    }
+
+    fun setMaxItems(value: Int) {
+        prefs.maxItemsPerSource = value
+        _settings.update { it.copy(maxItemsPerSource = value) }
+    }
+
+    fun setSourceEnabled(id: String, enabled: Boolean) {
+        prefs.setSourceEnabled(id, enabled)
+        _settings.update { it.copy(disabledSources = prefs.disabledSources()) }
+    }
+
+    fun resetSources() {
+        prefs.resetSources()
+        _settings.update { it.copy(disabledSources = emptySet()) }
+    }
+
+    fun openInstallPermission() {
+        updateManager.openInstallPermissionSettings()
+    }
+}

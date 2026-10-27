@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Blue Ocean IT</string>
+    <string name="app_tagline">Новости, идеи и деньги в IT по всему миру</string>
+    <string name="channel_news">Новости</string>
+    <string name="channel_news_desc">Уведомления о свежих материалах</string>
+    <string name="channel_updates">Обновления приложения</string>
+    <string name="channel_updates_desc">Сообщения о новых версиях</string>
+</resources>

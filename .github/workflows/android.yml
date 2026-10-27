@@ -1,0 +1,125 @@
+name: Android APK
+
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: "Опубликовать релиз (обновление для приложения)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Сборка подписанного APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 3
+
+      - name: JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Номер версии
+        id: ver
+        run: |
+          CODE="${{ github.run_number }}"
+          NAME="1.0.${CODE}"
+          echo "code=${CODE}" >> "$GITHUB_OUTPUT"
+          echo "name=${NAME}" >> "$GITHUB_OUTPUT"
+          echo "apk=BlueOceanIT-${NAME}.apk" >> "$GITHUB_OUTPUT"
+          echo "Версия: ${NAME} (versionCode ${CODE})"
+
+      - name: Сборка release APK (постоянный ключ)
+        env:
+          VERSION_CODE: ${{ steps.ver.outputs.code }}
+          VERSION_NAME: ${{ steps.ver.outputs.name }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'BlueOcean2026Strong!' }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'blueocean' }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'BlueOcean2026Strong!' }}
+        run: ./gradlew :app:assembleRelease --stacktrace --no-daemon
+
+      - name: Проверка подписи и подготовка файла
+        id: apk
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/release/app-release.apk"
+          test -f "$APK"
+          BUILD_TOOLS="$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -n1)"
+          "$ANDROID_HOME/build-tools/$BUILD_TOOLS/apksigner" verify --print-certs "$APK" | tee signature.txt
+          OUT="${{ steps.ver.outputs.apk }}"
+          cp "$APK" "$OUT"
+          SHA="$(sha256sum "$OUT" | cut -d' ' -f1)"
+          SIGNER="$(grep -m1 'SHA-256 digest' signature.txt | sed 's/^.*: //')"
+          SIZE="$(du -h "$OUT" | cut -f1)"
+          {
+            echo "sha=${SHA}"
+            echo "signer=${SIGNER}"
+            echo "size=${SIZE}"
+          } >> "$GITHUB_OUTPUT"
+          echo "APK: $OUT ($SIZE), sha256=$SHA"
+
+      - name: Артефакт сборки
+        uses: actions/upload-artifact@v4
+        with:
+          name: BlueOceanIT-${{ steps.ver.outputs.name }}
+          path: |
+            ${{ steps.ver.outputs.apk }}
+            signature.txt
+          retention-days: 30
+
+      - name: Публикация релиза (main или ручной запуск)
+        if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && inputs.publish_release)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.name }}
+          name: Blue Ocean IT ${{ steps.ver.outputs.name }}
+          make_latest: true
+          fail_on_unmatched_files: true
+          files: ${{ steps.ver.outputs.apk }}
+          body: |
+            ## Blue Ocean IT ${{ steps.ver.outputs.name }}
+
+            APK подписан **постоянным ключом** — устанавливается поверх предыдущей версии,
+            данные и настройки сохраняются. Просто скачайте файл на телефон и откройте его.
+
+            - Размер: ${{ steps.apk.outputs.size }}
+            - SHA-256: `${{ steps.apk.outputs.sha }}`
+            - Сертификат подписи: `${{ steps.apk.outputs.signer }}`
+            - Коммит: ${{ github.sha }}
+
+            Приложение само проверяет этот релиз (GitHub Releases API), скачивает APK,
+            сверяет подпись с установленной и запускает установщик.
+
+      - name: Драфт-сборка для ветки
+        if: github.ref != 'refs/heads/main' && github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dev-build
+          name: Dev build (черновик)
+          draft: true
+          files: ${{ steps.ver.outputs.apk }}
+          body: |
+            Тестовая сборка ветки `${{ github.ref_name }}` — ${{ steps.ver.outputs.name }}.
+            SHA-256: `${{ steps.apk.outputs.sha }}`
