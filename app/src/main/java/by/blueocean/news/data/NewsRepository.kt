@@ -37,10 +37,6 @@ class NewsRepository(
     private val translator = Translator(store)
     private val semaphore = Semaphore(8)
 
-    private companion object {
-        const val SEPARATOR = "[[[SEP]]]"
-    }
-
     // ─────────────── Синхронизация ───────────────
 
     suspend fun sync(onProgress: (String) -> Unit = {}): SyncResult = withContext(Dispatchers.IO) {
@@ -301,6 +297,8 @@ class NewsRepository(
     fun isRussianText(text: String): Boolean = translator.isRussian(text)
 
     companion object {
+        private const val SEPARATOR = "[[[SEP]]]"
+
         @Volatile
         private var instance: NewsRepository? = null
 

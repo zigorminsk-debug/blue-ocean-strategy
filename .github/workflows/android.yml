@@ -188,17 +188,11 @@ jobs:
     needs: build
     if: needs.build.result == 'success' && (contains(github.event.head_commit.message, '[smoke]') || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 50
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
 
       - name: APK из сборки
         uses: actions/download-artifact@v4
@@ -211,71 +205,108 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+          ls -la /dev/kvm || echo "нет /dev/kvm"
 
-      - name: Запуск приложения на эмуляторе
+      - name: Эмулятор и запуск приложения
         id: emu
         continue-on-error: true
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 30
-          target: google_apis
-          arch: x86_64
-          disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: |
-            set +e
-            APK="$(ls apk/*.apk | head -n1)"
-            echo "APK: $APK"
-            adb install -r "$APK"
-            adb shell pm grant by.blueocean.news android.permission.POST_NOTIFICATIONS 2>/dev/null
-            adb logcat -c
-            adb shell am start -W -n by.blueocean.news/.MainActivity
-            sleep 35
-            PID="$(adb shell pidof by.blueocean.news | tr -d '\r')"
-            adb logcat -d > logcat.txt
-            adb exec-out screencap -p > screen.png
-            {
-              echo "PID: ${PID:-<none>}"
-              if grep -q "FATAL EXCEPTION" logcat.txt; then
-                echo "RESULT: CRASH"
-                grep -A 25 "FATAL EXCEPTION" logcat.txt | head -n 60
-              elif [ -z "$PID" ]; then
-                echo "RESULT: PROCESS_NOT_RUNNING"
-                tail -n 60 logcat.txt
-              else
-                echo "RESULT: APP_ALIVE"
-                grep -E "Displayed by.blueocean.news" logcat.txt | head -n 3
-              fi
-            } | tee smoke-result.txt
-            if grep -q "FATAL EXCEPTION" logcat.txt || [ -z "$PID" ]; then exit 1; fi
+        shell: bash
+        run: |
+          set +e
+          exec > >(tee -a emulator.log) 2>&1
+          SDK="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          export ANDROID_HOME="$SDK"
+          export ANDROID_SDK_ROOT="$SDK"
+          export PATH="$SDK/platform-tools:$SDK/emulator:$PATH"
+          SDKM="$(find "$SDK" -name sdkmanager -type f 2>/dev/null | head -n1)"
+          AVDM="$(find "$SDK" -name avdmanager -type f 2>/dev/null | head -n1)"
+          echo "SDK=$SDK"
+          echo "sdkmanager=$SDKM"
+          echo "avdmanager=$AVDM"
+          yes | "$SDKM" --licenses > /dev/null 2>&1
+          "$SDKM" "platform-tools" "emulator" "system-images;android-30;google_apis;x86_64" 2>&1 | tail -n 8
+          "$SDK/emulator/emulator" -version 2>&1 | head -n 3
+          echo no | "$AVDM" create avd -n ci30 -k "system-images;android-30;google_apis;x86_64" -d pixel --force 2>&1 | tail -n 5
+          "$AVDM" list avd 2>&1 | head -n 10
+          nohup "$SDK/emulator/emulator" -avd ci30 -no-window -no-audio -no-boot-anim \
+            -no-snapshot -gpu swiftshader_indirect -camera-back none -accel auto \
+            > emulator-run.log 2>&1 &
+          adb start-server 2>&1 | tail -n 3
+          BOOTED=0
+          for i in $(seq 1 100); do
+            B="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')"
+            D="$(adb devices | tail -n +2 | head -n1)"
+            echo "проверка $i: device='$D' boot='$B'"
+            if [ "$B" = "1" ]; then BOOTED=1; break; fi
+            sleep 6
+          done
+          echo "BOOTED=$BOOTED"
+          if [ "$BOOTED" != "1" ]; then
+            echo "RESULT: EMULATOR_NOT_BOOTED"
+            tail -n 40 emulator-run.log
+            exit 1
+          fi
+          APK="$(ls apk/*.apk | head -n1)"
+          echo "APK: $APK"
+          adb install -r "$APK" 2>&1 | tail -n 3
+          adb logcat -c
+          adb shell am start -W -n by.blueocean.news/.MainActivity 2>&1 | tail -n 6
+          sleep 45
+          PID="$(adb shell pidof by.blueocean.news | tr -d '\r')"
+          adb logcat -d > logcat.txt
+          adb exec-out screencap -p > screen.png
+          {
+            echo "PID: ${PID:-<none>}"
+            if grep -q "FATAL EXCEPTION" logcat.txt; then
+              echo "RESULT: CRASH"
+              grep -A 30 "FATAL EXCEPTION" logcat.txt | head -n 60
+            elif [ -z "$PID" ]; then
+              echo "RESULT: PROCESS_NOT_RUNNING"
+              tail -n 80 logcat.txt
+            else
+              echo "RESULT: APP_ALIVE"
+              grep -E "Displayed by.blueocean.news|Start proc.*blueocean" logcat.txt | head -n 5
+            fi
+          } | tee smoke-result.txt
+          if grep -q "FATAL EXCEPTION" logcat.txt || [ -z "$PID" ]; then exit 1; fi
+          exit 0
 
-      - name: Сохранить скриншот и лог
+      - name: Сохранить скриншот и логи
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: smoke-screen-${{ github.run_number }}
+          name: smoke-${{ github.run_number }}
           path: |
+            apk/*.apk
             screen.png
+            emulator.log
+            emulator-run.log
             logcat.txt
             smoke-result.txt
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 14
 
       - name: Отчёт smoke-теста
         if: always()
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           {
-            echo "**Smoke-тест** (шаг эмулятора: ${{ steps.emu.outcome }})"
+            echo "### Smoke-тест: шаг эмулятора ${{ steps.emu.outcome }}"
             echo
             if [ -f smoke-result.txt ]; then
+              echo '**Приложение на эмуляторе:**'
               echo '```'
-              head -n 80 smoke-result.txt
+              head -n 40 smoke-result.txt
               echo '```'
-            else
-              echo "Эмулятор не отработал, файла результата нет."
             fi
+            echo '**Диагностика (последние строки):**'
+            echo '```'
+            tail -n 60 emulator.log 2>/dev/null
+            echo '--- emulator-run.log ---'
+            tail -n 25 emulator-run.log 2>/dev/null
+            echo '```'
           } > smoke-report.md
           python3 - <<'PY'
           import json, os, urllib.request
