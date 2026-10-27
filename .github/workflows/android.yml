@@ -268,7 +268,7 @@ jobs:
           adb shell pm grant by.blueocean.news android.permission.POST_NOTIFICATIONS 2>&1 | tail -n 2
           adb logcat -c
           adb shell am start -W -n by.blueocean.news/.MainActivity 2>&1 | tail -n 6
-          sleep 100
+          sleep 150
           PID="$(adb shell pidof by.blueocean.news | tr -d '\r')"
           adb logcat -d > logcat.txt
           adb exec-out screencap -p > screen.png
@@ -288,6 +288,57 @@ jobs:
             grep -E "BlueOcean|OkHttp|UnknownHost|SSLHandshake" logcat.txt | tail -n 25
           } | tee smoke-result.txt
           if grep -q "FATAL EXCEPTION" logcat.txt || [ -z "$PID" ]; then exit 1; fi
+
+          echo "--- открываю первую новость ---"
+          # ждём, пока в ленте появится карточка (до 3 минут)
+          for i in $(seq 1 18); do
+            adb shell uiautomator dump /sdcard/ui.xml > /dev/null 2>&1
+            adb pull /sdcard/ui.xml ui.xml > /dev/null 2>&1
+            if grep -q 'clickable="true"' ui.xml 2>/dev/null; then
+              echo "карточка найдена на попытке $i"
+              break
+            fi
+            sleep 10
+          done
+          python3 - <<'PY' > tap.txt 2>/dev/null || echo "540 1200 fallback" > tap.txt
+          import re
+          try:
+              xml = open('ui.xml', encoding='utf-8').read()
+          except Exception:
+              print(540, 1200, 'fallback')
+              raise SystemExit
+          for node in re.findall(r'<node[^>]*>', xml):
+              text = re.search(r'text="([^"]*)"', node)
+              bounds = re.search(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', node)
+              clickable = 'clickable="true"' in node
+              if not (text and bounds and clickable):
+                  continue
+              value = text.group(1)
+              if len(value) < 25:
+                  continue
+              x1, y1, x2, y2 = map(int, bounds.groups())
+              print((x1 + x2) // 2, (y1 + y2) // 2, value[:50].replace(' ', '_'))
+              break
+          else:
+              print(540, 1200, 'fallback')
+          PY
+          cat tap.txt
+          X="$(cut -d' ' -f1 tap.txt)"
+          Y="$(cut -d' ' -f2 tap.txt)"
+          adb shell input tap "$X" "$Y"
+          sleep 90
+          adb logcat -d > logcat-reader.txt
+          adb exec-out screencap -p > screen-reader.png
+          {
+            echo "Тап: $X,$Y"
+            if grep -q "FATAL EXCEPTION" logcat-reader.txt; then
+              echo "READER_RESULT: CRASH"
+              grep -A 25 "FATAL EXCEPTION" logcat-reader.txt | head -n 50
+            else
+              echo "READER_RESULT: OK"
+              grep -E "BlueOcean" logcat-reader.txt | tail -n 10
+            fi
+          } | tee reader-result.txt
           exit 0
 
       - name: Сохранить скриншот и логи
@@ -298,6 +349,8 @@ jobs:
           path: |
             apk/*.apk
             screen.png
+            screen-reader.png
+            reader-result.txt
             emulator.log
             emulator-run.log
             logcat.txt
@@ -313,9 +366,11 @@ jobs:
           mkdir -p docs
           cp screen.png docs/screenshot.png
           cp smoke-result.txt docs/smoke-result.txt 2>/dev/null || true
+          if [ -f screen-reader.png ]; then cp screen-reader.png docs/screenshot-reader.png; fi
+          if [ -f reader-result.txt ]; then cp reader-result.txt docs/reader-result.txt; fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/screenshot.png docs/smoke-result.txt 2>/dev/null || git add docs/screenshot.png
+          git add docs/ 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "изменений нет"
             exit 0
@@ -336,6 +391,12 @@ jobs:
               echo '**Приложение на эмуляторе:**'
               echo '```'
               head -n 40 smoke-result.txt
+              echo '```'
+            fi
+            if [ -f reader-result.txt ]; then
+              echo '**Открытие новости (ридер):**'
+              echo '```'
+              head -n 30 reader-result.txt
               echo '```'
             fi
             echo '**Диагностика (начало):**'

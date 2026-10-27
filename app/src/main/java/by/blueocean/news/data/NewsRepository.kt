@@ -180,8 +180,9 @@ class NewsRepository(
     }
 
     /**
-     * Переводит заголовок и описание. Сохраняет частичные результаты,
-     * поэтому при сбое сети уже переведённый заголовок остаётся.
+     * Переводит заголовок и описание. Заголовок и описание переводятся отдельными
+     * запросами (так текст не склеивается), результаты сохраняются сразу —
+     * сбой на одном поле не ломает второе.
      */
     private suspend fun translateArticle(article: ArticleEntity): Boolean {
         if (article.lang == "ru") return false
@@ -191,41 +192,17 @@ class NewsRepository(
         var summaryRu = article.summaryRu
 
         if (titleRu.isBlank()) {
-            // Один запрос на заголовок + описание, чтобы экономить лимиты сервиса
-            val summaryPiece = article.summary.take(900)
-            val combined = if (summaryPiece.isBlank()) {
-                article.title
-            } else {
-                article.title + "\n\n" + SEPARATOR + "\n\n" + summaryPiece
-            }
-            val translated = translator.translate(combined, article.lang) ?: return false
-            val parts = translated.split(SEPARATOR)
-            if (parts.size >= 2) {
-                titleRu = parts[0].trim()
-                val summaryTranslated = parts.drop(1).joinToString(" ").trim()
-                if (summaryTranslated.isNotBlank()) {
-                    store.applySummaryTranslation(article.id, summaryTranslated)
-                    summaryRu = summaryTranslated
-                }
-            } else {
-                titleRu = translated.trim()
-            }
+            val translatedTitle = translator.translate(article.title, article.lang) ?: return false
+            titleRu = translatedTitle.trim().take(400)
             store.applyTitleTranslation(article.id, titleRu)
             changed = true
+        }
 
-            // Если разделитель «потерялся» — переводим описание отдельно
-            if (summaryPiece.isNotBlank() && summaryRu.isBlank()) {
-                val summaryOnly = translator.translate(summaryPiece, article.lang)
-                if (!summaryOnly.isNullOrBlank()) {
-                    store.applySummaryTranslation(article.id, summaryOnly)
-                    summaryRu = summaryOnly
-                }
-            }
-        } else if (summaryRu.isBlank() && article.summary.isNotBlank()) {
-            val summaryOnly = translator.translate(article.summary.take(900), article.lang)
-            if (!summaryOnly.isNullOrBlank()) {
-                store.applySummaryTranslation(article.id, summaryOnly)
-                summaryRu = summaryOnly
+        if (summaryRu.isBlank() && article.summary.isNotBlank()) {
+            val translatedSummary = translator.translate(article.summary.take(900), article.lang)
+            if (!translatedSummary.isNullOrBlank()) {
+                summaryRu = translatedSummary.trim()
+                store.applySummaryTranslation(article.id, summaryRu)
                 changed = true
             }
         }
@@ -312,7 +289,6 @@ class NewsRepository(
 
     companion object {
         private const val TAG = "BlueOcean"
-        private const val SEPARATOR = "[[[SEP]]]"
 
         @Volatile
         private var instance: NewsRepository? = null
