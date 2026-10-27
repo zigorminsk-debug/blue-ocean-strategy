@@ -83,6 +83,15 @@ class NewsRepository(
 
         val candidates = parsed
             .filter { it.second.link.startsWith("http") && it.second.title.isNotBlank() }
+            .map { (source, item) ->
+                // Ленты без дат не должны «прилипать» к верху: распределяем их по последним 36 часам
+                val timestamp = if (item.publishedAt > 0) {
+                    item.publishedAt
+                } else {
+                    now - (stableOffset(item.link) % (36L * 3600 * 1000))
+                }
+                source to item.copy(publishedAt = timestamp)
+            }
             .filter { it.second.publishedAt > now - maxAge }
             .groupBy { it.first.id }
             .values
@@ -196,6 +205,13 @@ class NewsRepository(
      * запросами (так текст не склеивается), результаты сохраняются сразу —
      * сбой на одном поле не ломает второе.
      */
+    /** Детерминированный сдвиг по ссылке: одинаковый при каждом синке. */
+    private fun stableOffset(link: String): Long {
+        var hash = 1125899906842597L
+        for (ch in link) hash = 31 * hash + ch.code
+        return hash and Long.MAX_VALUE
+    }
+
     private suspend fun translateArticle(article: ArticleEntity): Boolean {
         if (article.lang == "ru") return false
 

@@ -98,6 +98,11 @@ class FeedParserTest {
         val value = FeedParser.parseDate("1761559200")
         assertEquals(1761559200000L, value)
     }
+
+    @Test
+    fun unknownDateReturnsZero() {
+        assertEquals(0L, FeedParser.parseDate("не дата"))
+    }
 }
 
 class AnalyzerTest {

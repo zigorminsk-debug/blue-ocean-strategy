@@ -12,6 +12,7 @@ import by.blueocean.news.data.Http
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Request
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.security.MessageDigest
@@ -36,9 +37,7 @@ class UpdateManager(private val context: Context) {
 
     suspend fun check(): UpdateInfo? = withContext(Dispatchers.IO) {
         try {
-            val body = Http.getJson("https://api.github.com/repos/$OWNER/$REPO/releases/latest")
-                ?: return@withContext null
-            val json = JSONObject(body)
+            val json = latestReleaseJson() ?: return@withContext null
             val tag = json.optString("tag_name").removePrefix("v").removePrefix("V")
             if (tag.isBlank()) return@withContext null
             if (!isNewer(tag, BuildConfig.VERSION_NAME)) return@withContext null
@@ -67,6 +66,29 @@ class UpdateManager(private val context: Context) {
         } catch (t: Throwable) {
             null
         }
+    }
+
+    /**
+     * Берем последний стабильный релиз; если его ещё нет — самую свежую
+     * prerelease-сборку (dev-build), чтобы автообновление работало с самого начала.
+     */
+    private fun latestReleaseJson(): JSONObject? {
+        val stable = Http.getJson("https://api.github.com/repos/$OWNER/$REPO/releases/latest")
+        if (stable != null) {
+            val json = runCatching { JSONObject(stable) }.getOrNull()
+            if (json != null && json.optString("tag_name").isNotBlank()) return json
+        }
+        val list = Http.getJson("https://api.github.com/repos/$OWNER/$REPO/releases?per_page=10")
+            ?: return null
+        val array = runCatching { JSONArray(list) }.getOrNull() ?: return null
+        var fallback: JSONObject? = null
+        for (i in 0 until array.length()) {
+            val json = array.optJSONObject(i) ?: continue
+            if (json.optBoolean("draft")) continue
+            if (!json.optBoolean("prerelease") && json.optString("tag_name").isNotBlank()) return json
+            if (fallback == null) fallback = json
+        }
+        return fallback
     }
 
     suspend fun download(info: UpdateInfo, onProgress: (Int) -> Unit = {}): File? =

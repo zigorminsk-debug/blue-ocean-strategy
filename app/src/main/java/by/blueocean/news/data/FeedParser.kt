@@ -152,9 +152,10 @@ object FeedParser {
 
     private val SPACED_DIGITS = Regex("""(?<=[а-яёa-z])(?=\d+([,;]\d+)*[\s.,]|$)""")
 
+    /** @return время публикации или 0, если дата не распознана. */
     fun parseDate(raw: String): Long {
         val value = raw.trim()
-        if (value.isEmpty()) return System.currentTimeMillis()
+        if (value.isEmpty()) return 0L
         value.toLongOrNull()?.let { number ->
             return if (number < 100_000_000_000L) number * 1000 else number
         }
@@ -170,6 +171,6 @@ object FeedParser {
             val instant = candidate.getOrNull() ?: continue
             return instant.toEpochMilli()
         }
-        return System.currentTimeMillis()
+        return 0L
     }
 }
