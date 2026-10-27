@@ -1,11 +1,11 @@
 --- вкладки ---
--rw-r--r-- 1 runner runner 242336 Oct 27 22:30 screen-reader.png
--rw-r--r-- 1 runner runner 343472 Oct 27 22:30 screen-Идеи.png
--rw-r--r-- 1 runner runner 242806 Oct 27 22:31 screen-Настройки.png
--rw-r--r-- 1 runner runner 227032 Oct 27 22:30 screen-Тренды.png
+-rw-r--r-- 1 runner runner 254001 Oct 27 22:48 screen-reader.png
+-rw-r--r-- 1 runner runner 346467 Oct 27 22:48 screen-Идеи.png
+-rw-r--r-- 1 runner runner 243395 Oct 27 22:49 screen-Настройки.png
+-rw-r--r-- 1 runner runner 230849 Oct 27 22:48 screen-Тренды.png
 TABS_RESULT: OK
-10-27 22:29:28.649  3407  5262 I BlueOcean: translate: done=30 of 30
-10-27 22:29:34.245  3407  5254 I BlueOcean: translate: done=30 of 30
-10-27 22:29:46.856  3407  5257 I BlueOcean: translate: done=30 of 30
-10-27 22:30:04.215  3407  5260 I BlueOcean: translate: done=30 of 30
-10-27 22:30:20.493  3407  5260 I BlueOcean: translate: done=30 of 30
+10-27 22:47:33.915  3147  5326 I BlueOcean: translate: done=30 of 30
+10-27 22:47:36.188  3147  5865 I BlueOcean: translate: done=30 of 30
+10-27 22:47:39.831  3147  5855 I BlueOcean: translate: done=30 of 30
+10-27 22:47:52.560  3147  5858 I BlueOcean: translate: done=30 of 30
+10-27 22:48:09.245  3147  5905 I BlueOcean: translate: done=30 of 30
