@@ -43,6 +43,27 @@ object Http {
         }
     }
 
+    /** Загрузка HTML-страницы статьи (браузерные заголовки, чтобы не отдавали заглушку). */
+    fun getHtml(url: String, userAgent: String = UA): String? {
+        return try {
+            val request = Request.Builder()
+                .url(url)
+                .header("User-Agent", userAgent)
+                .header(
+                    "Accept",
+                    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
+                )
+                .header("Accept-Language", "ru,en;q=0.8")
+                .build()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return null
+                response.body?.string()
+            }
+        } catch (t: Throwable) {
+            null
+        }
+    }
+
     fun getJson(url: String, userAgent: String = UA): String? {
         return try {
             val request = Request.Builder()

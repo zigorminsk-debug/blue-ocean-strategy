@@ -40,7 +40,10 @@ class NewsRepository(
 
     // ─────────────── Синхронизация ───────────────
 
-    suspend fun sync(onProgress: (String) -> Unit = {}): SyncResult = withContext(Dispatchers.IO) {
+    suspend fun sync(
+        onProgress: (String) -> Unit = {},
+        onNewData: () -> Unit = {}
+    ): SyncResult = withContext(Dispatchers.IO) {
         val sources = Sources.enabled(prefs)
         if (sources.isEmpty()) {
             return@withContext SyncResult(0, 0, 0, 0, "Все источники отключены", false)
@@ -116,10 +119,13 @@ class NewsRepository(
         val fresh = store.insertNew(entities)
         Log.i(TAG, "sync: sources_ok=$ok failed=$failed candidates=${candidates.size} new=${fresh.size}")
 
+        // Сразу показываем новые материалы в ленте — перевод догонит в фоне
+        if (fresh.isNotEmpty()) onNewData()
+
         onProgress("Добавлено ${fresh.size} новых. Перевожу на русский…")
 
         if (fresh.isNotEmpty()) {
-            translatePending(limit = 40) { done, total ->
+            translatePending(limit = 12) { done, total ->
                 onProgress("Перевод: $done из $total…")
             }
         }
@@ -257,7 +263,7 @@ class NewsRepository(
 
         var original = article.fullText
         if (original.length < 300) {
-            val html = Http.get(article.link)
+            val html = Http.getHtml(article.link)
             if (!html.isNullOrBlank()) {
                 val extracted = runCatching { ArticleExtractor.extract(html, article.link) }
                     .getOrNull()

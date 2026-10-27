@@ -177,7 +177,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (_sync.value.syncing) return
         viewModelScope.launch {
             _sync.update { it.copy(syncing = true, status = "Обновляю ленту…") }
-            val result = runCatching { repo.sync { message -> _sync.update { it.copy(status = message) } } }
+            val result = runCatching {
+                repo.sync(
+                    onProgress = { message -> _sync.update { it.copy(status = message) } },
+                    onNewData = { launch { reload() } }
+                )
+            }
             if (result.isSuccess) {
                 val syncResult = result.getOrThrow()
                 _sync.update {
@@ -431,13 +436,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setWifiOnly(value: Boolean) {
         prefs.wifiOnly = value
         _settings.update { it.copy(wifiOnly = value) }
-        WorkScheduler.scheduleSync(getApplication(), prefs.syncIntervalHours, value)
+        WorkScheduler.rescheduleSync(getApplication(), prefs.syncIntervalHours, value)
     }
 
     fun setSyncInterval(hours: Int) {
         prefs.syncIntervalHours = hours
         _settings.update { it.copy(syncIntervalHours = hours) }
-        WorkScheduler.scheduleSync(getApplication(), hours, prefs.wifiOnly)
+        WorkScheduler.rescheduleSync(getApplication(), hours, prefs.wifiOnly)
     }
 
     fun setMaxItems(value: Int) {

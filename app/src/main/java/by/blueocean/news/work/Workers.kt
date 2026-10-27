@@ -75,10 +75,28 @@ object WorkScheduler {
             .build()
         val request = PeriodicWorkRequestBuilder<SyncWorker>(hours, TimeUnit.HOURS)
             .setConstraints(constraints)
+            .setInitialDelay(hours, TimeUnit.HOURS) // первый синк делает приложение при запуске
             .build()
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             SYNC_WORK,
-            ExistingPeriodicWorkPolicy.UPDATE,
+            ExistingPeriodicWorkPolicy.KEEP,
+            request
+        )
+    }
+
+    /** Пересоздаёт периодический синк (например, после смены интервала). */
+    fun rescheduleSync(context: Context, intervalHours: Int, wifiOnly: Boolean = false) {
+        val hours = intervalHours.coerceAtLeast(1).toLong()
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(if (wifiOnly) NetworkType.UNMETERED else NetworkType.CONNECTED)
+            .build()
+        val request = PeriodicWorkRequestBuilder<SyncWorker>(hours, TimeUnit.HOURS)
+            .setConstraints(constraints)
+            .setInitialDelay(hours, TimeUnit.HOURS)
+            .build()
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            SYNC_WORK,
+            ExistingPeriodicWorkPolicy.CANCEL_AND_REENQUEUE,
             request
         )
     }
@@ -89,6 +107,7 @@ object WorkScheduler {
             .build()
         val request = PeriodicWorkRequestBuilder<TranslationWorker>(15, TimeUnit.MINUTES)
             .setConstraints(constraints)
+            .setInitialDelay(15, TimeUnit.MINUTES)
             .build()
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             TRANSLATION_WORK,
@@ -103,6 +122,7 @@ object WorkScheduler {
             .build()
         val request = PeriodicWorkRequestBuilder<UpdateCheckWorker>(6, TimeUnit.HOURS)
             .setConstraints(constraints)
+            .setInitialDelay(1, TimeUnit.HOURS)
             .build()
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             UPDATE_WORK,

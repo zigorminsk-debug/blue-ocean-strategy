@@ -265,9 +265,10 @@ jobs:
           APK="$(ls apk/*.apk | head -n1)"
           echo "APK: $APK"
           adb install -r "$APK" 2>&1 | tail -n 3
+          adb shell pm grant by.blueocean.news android.permission.POST_NOTIFICATIONS 2>&1 | tail -n 2
           adb logcat -c
           adb shell am start -W -n by.blueocean.news/.MainActivity 2>&1 | tail -n 6
-          sleep 70
+          sleep 100
           PID="$(adb shell pidof by.blueocean.news | tr -d '\r')"
           adb logcat -d > logcat.txt
           adb exec-out screencap -p > screen.png
