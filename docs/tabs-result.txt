@@ -1,0 +1,11 @@
+--- вкладки ---
+-rw-r--r-- 1 runner runner 285407 Oct 27 21:47 screen-reader.png
+-rw-r--r-- 1 runner runner 360940 Oct 27 21:47 screen-Идеи.png
+-rw-r--r-- 1 runner runner 242606 Oct 27 21:47 screen-Настройки.png
+-rw-r--r-- 1 runner runner 236835 Oct 27 21:47 screen-Тренды.png
+TABS_RESULT: OK
+10-27 21:45:43.165  3463  3574 I BlueOcean: translate: done=15 of 15
+10-27 21:46:00.570  3463  6302 I BlueOcean: reader: id=683 original=18000 translated=14936
+10-27 21:46:13.197  3463  6302 I BlueOcean: translate: done=15 of 15
+10-27 21:46:40.916  3463  3576 I BlueOcean: translate: done=15 of 15
+10-27 21:47:08.514  3463  3576 I BlueOcean: translate: done=15 of 15
