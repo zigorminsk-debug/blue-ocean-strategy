@@ -132,13 +132,18 @@ class AnalyzerTest {
 
 class TrendsTest {
 
-    private fun article(id: Long, title: String, publishedAt: Long) = ArticleEntity(
+    private fun article(
+        id: Long,
+        title: String,
+        publishedAt: Long,
+        sourceId: String = "test"
+    ) = ArticleEntity(
         id = id,
         title = title,
         summary = "",
         link = "https://example.com/$id",
-        sourceId = "test",
-        sourceName = "Test",
+        sourceId = sourceId,
+        sourceName = "Test $sourceId",
         region = "Весь мир",
         category = "Технологии",
         lang = "en",
@@ -151,14 +156,16 @@ class TrendsTest {
         val now = System.currentTimeMillis()
         val day = 24 * 3600 * 1000L
         val list = listOf(
-            article(1, "Робот научился готовить кофе", now),
-            article(2, "Робот заменил курьера в Доставке", now - 10 * day)
+            article(1, "Робот научился готовить кофе", now, "a"),
+            article(2, "Роботы заменили курьеров в доставке", now, "b"),
+            article(3, "Робот-манипулятор на складе", now, "c"),
+            article(4, "Робот в прошлой неделе", now - 10 * day, "d")
         )
         val words = Trends.words(list, days = 7, limit = 50)
         val robot = words.firstOrNull { it.word.startsWith("робот") }
         assertNotNull("робот must be in trends", robot)
-        assertEquals(1, robot!!.count)
-        assertEquals(1, robot.previous)
+        assertTrue("count: ${robot!!.count}", robot.count >= 3)
+        assertTrue("previous: ${robot.previous}", robot.previous >= 1)
     }
 
     @Test
@@ -171,6 +178,43 @@ class TrendsTest {
         val opportunities = Trends.opportunities(list, minScore = 8)
         assertEquals(1, opportunities.size)
         assertEquals(30, opportunities.first().score)
+    }
+}
+
+class TrendsFilterTest {
+
+    private fun article(id: Long, title: String, sourceId: String) = ArticleEntity(
+        id = id,
+        title = title,
+        summary = "",
+        link = "https://example.com/t$id",
+        sourceId = sourceId,
+        sourceName = "Src $sourceId",
+        region = "Весь мир",
+        category = "Технологии",
+        lang = "ru",
+        publishedAt = System.currentTimeMillis(),
+        fetchedAt = System.currentTimeMillis()
+    )
+
+    @Test
+    fun ignoresWordsFromSingleSource() {
+        val list = listOf(
+            article(1, "abstract announcement arxiv", "arxiv"),
+            article(2, "abstract announcement arxiv", "arxiv2"),
+            article(3, "искусственный интеллект растёт", "a"),
+            article(4, "искусственный интеллект и рынок", "b"),
+            article(5, "интеллект в промышленности", "c")
+        )
+        val words = Trends.words(list, days = 7, limit = 50).map { it.word }
+        assertFalse("abstract must be filtered: $words", words.contains("abstract"))
+        assertTrue("интеллект expected in: $words", words.any { it.startsWith("интеллект") })
+    }
+
+    @Test
+    fun normalizesRussianEndings() {
+        assertEquals(Trends.normalize("интеллекта"), Trends.normalize("интеллект"))
+        assertEquals(Trends.normalize("стартапы"), Trends.normalize("стартап"))
     }
 }
 

@@ -23,6 +23,9 @@ data class DirectionStat(
  */
 object Trends {
 
+    /** Минимум источников, в которых встретился термин. */
+    private const val MIN_SOURCES = 3
+
     private val stopWords = setOf(
         // английские
         "the", "and", "for", "with", "that", "this", "from", "have", "has", "will", "are", "was",
@@ -37,6 +40,16 @@ object Trends {
         "day", "days", "time", "times", "people", "world", "global", "million", "billion",
         "https", "http", "www", "com", "amp", "utm", "source", "read", "image", "photo",
         "getty", "shutterstock", "reuters", "bloomberg", "techcrunch",
+        "arxiv", "abstract", "announce", "announced", "announces", "item", "items", "post",
+        "posts", "appeared", "while", "across", "type", "types", "insights", "research",
+        "researchers", "paper", "papers", "study", "authors", "based", "using", "show",
+        "shows", "shown", "according", "including", "added", "says", "said", "could",
+        "still", "well", "back", "even", "every", "among", "within", "without", "under",
+        "between", "during", "because", "these", "those", "other", "others", "such",
+        "points", "point", "comments", "comment", "thread", "reading", "read", "reply",
+        "replies", "upvote", "upvotes", "href", "here", "link", "links", "original",
+        "full", "story", "stories", "article", "articles", "editor", "via", "per",
+        "item", "discuss", "discussion", "submit", "submitted", "karma", "ask", "show",
         // русские
         "это", "как", "что", "для", "или", "при", "над", "под", "без", "про", "через", "между",
         "также", "более", "менее", "самых", "самый", "самая", "самое", "который", "которая",
@@ -49,9 +62,21 @@ object Trends {
         "технологий", "мира", "мир", "стал", "стала", "стали", "свои", "своих", "себя", "этом",
         "этого", "этой", "том", "тем", "чем", "кто", "где", "когда", "почему", "зачем", "из-за",
         "кроме", "среди", "около", "почти", "около", "всё", "него", "нее", "неё", "них", "нас",
-        "вас", "мы", "вы", "они", "она", "оно", "это", "весь", "вся", "всё", "против", "благодаря"
+        "вас", "мы", "вы", "они", "она", "оно", "это", "весь", "вся", "всё", "против", "благодаря",
+        "чтобы", "далее", "читать", "статьи", "статья", "статей", "баллы", "балл", "комментарии",
+        "комментариев", "комментарий", "пост", "поста", "посты", "автор", "авторы", "источник",
+        "источника", "подробнее", "например", "которые", "которая", "которое", "которого",
+        "является", "являются", "может", "можно", "нужно", "также", "кроме", "более", "менее",
+        "самое", "самых", "очень", "будет", "будут", "были", "было", "была", "был", "есть",
+        "этого", "этому", "этим", "такой", "такая", "такие", "таких", "него", "нему", "если",
+        "чем-то", "что-то", "кто-то", "где-то", "когда-то", "почему", "поэтому", "однако",
+        "именно", "просто", "теперь", "затем", "потом", "снова", "опять", "даже", "ведь"
     )
 
+    /**
+     * Тренды: русские термины (с лёгкой нормализацией окончаний) и узнаваемые
+     * англоязычные бренды/термины. Служебные слова и текст фидов отсеиваются.
+     */
     fun words(articles: List<ArticleEntity>, days: Int = 7, limit: Int = 60): List<TrendWord> {
         val now = System.currentTimeMillis()
         val dayMs = 24 * 3600 * 1000L
@@ -60,29 +85,85 @@ object Trends {
 
         val current = mutableMapOf<String, Int>()
         val previous = mutableMapOf<String, Int>()
+        val sourcesPerWord = mutableMapOf<String, MutableSet<String>>()
+        val displayForm = mutableMapOf<String, String>()
 
         for (article in articles) {
             val text = (article.displayTitle + " " + article.displaySummary).lowercase(Locale.ROOT)
-            val tokens = tokenize(text)
             val isCurrent = article.publishedAt >= currentFrom
             val isPrevious = article.publishedAt in previousFrom until currentFrom
             if (!isCurrent && !isPrevious) continue
             val seen = mutableSetOf<String>()
-            for (token in tokens) {
+            for (token in tokenize(text)) {
                 if (token.length < 4) continue
                 if (token in stopWords) continue
                 if (token.all { it.isDigit() }) continue
-                if (!seen.add(token)) continue
-                if (isCurrent) current[token] = (current[token] ?: 0) + 1
-                else previous[token] = (previous[token] ?: 0) + 1
+                if (!isMeaningful(token)) continue
+                val key = normalize(token)
+                if (!seen.add(key)) continue
+                if (isCurrent) {
+                    current[key] = (current[key] ?: 0) + 1
+                    sourcesPerWord.getOrPut(key) { mutableSetOf() }.add(article.sourceId)
+                    val shown = displayForm[key]
+                    if (shown == null || token.length < shown.length) displayForm[key] = token
+                } else {
+                    previous[key] = (previous[key] ?: 0) + 1
+                }
             }
         }
 
         return current.entries
+            // Термин должен встречаться в материалах разных источников: так отсеивается
+            // служебный текст конкретной ленты (arXiv, Hacker News и т.п.)
+            .filter { (sourcesPerWord[it.key]?.size ?: 0) >= MIN_SOURCES }
             .sortedByDescending { it.value }
             .take(limit)
-            .map { TrendWord(it.key, it.value, previous[it.key] ?: 0) }
+            .map {
+                TrendWord(
+                    word = displayForm[it.key] ?: it.key,
+                    count = it.value,
+                    previous = previous[it.key] ?: 0
+                )
+            }
     }
+
+    /** Оставляем русские слова и понятные всем ИТ-термины/бренды на латинице. */
+    private fun isMeaningful(token: String): Boolean {
+        val cyrillic = token.count { it in '\u0400'..'\u04FF' }
+        if (cyrillic >= token.length / 2) return true
+        return token in latinAllowlist
+    }
+
+    private val latinAllowlist = setOf(
+        "openai", "anthropic", "nvidia", "google", "apple", "amazon", "microsoft", "meta",
+        "tesla", "spacex", "openai", "chatgpt", "gpt", "llm", "ai", "agi", "gpu", "cpu",
+        "npu", "tpu", "chip", "chips", "cloud", "saas", "api", "startup", "startups",
+        "crypto", "bitcoin", "ethereum", "blockchain", "stablecoin", "robot", "robots",
+        "robotics", "drone", "drones", "quantum", "semiconductor", "datacenter", "aws",
+        "azure", "ios", "android", "linux", "windows", "python", "rust", "kotlin",
+        "github", "gitlab", "figma", "notion", "slack", "zoom", "tiktok", "youtube",
+        "iphone", "ipad", "macbook", "pixel", "gemini", "claude", "llama", "mistral",
+        "deepseek", "qwen", "hugging", "pytorch", "tensorflow", "kubernetes", "docker",
+        "postgres", "mysql", "redis", "kafka", "saas", "ai-агент", "ai-агенты"
+    )
+
+    /** Лёгкая нормализация русских окончаний, чтобы «интеллекта» и «интеллект» считались вместе. */
+    fun normalize(token: String): String {
+        if (token.any { it in '\u0400'..'\u04FF' }) {
+            for (ending in ruEndings) {
+                if (token.length - ending.length >= 5 && token.endsWith(ending)) {
+                    return token.dropLast(ending.length)
+                }
+            }
+        }
+        return token
+    }
+
+    private val ruEndings = listOf(
+        "иями", "ями", "ами", "ыми", "ими", "ого", "его", "ому", "ему", "ыми", "их", "ых",
+        "ая", "яя", "ое", "ее", "ые", "ие", "ую", "юю", "ов", "ев", "ам", "ям", "ах", "ях",
+        "ом", "ем", "ой", "ей", "ий", "ый", "ия", "ии", "ью", "а", "я", "ы", "и", "о", "е", "у", "ю"
+    )
 
     fun tokenize(text: String): List<String> {
         val result = mutableListOf<String>()
