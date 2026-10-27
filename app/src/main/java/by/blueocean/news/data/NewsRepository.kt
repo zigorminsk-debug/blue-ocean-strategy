@@ -10,8 +10,9 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 
 /**
- * Сбор новостей: параллельно тянет включённые RSS-источники, чистит, оценивает,
- * переводит на русский и складывает в базу.
+ * Сбор новостей и перевод:
+ * параллельно тянет включённые RSS-источники, чистит, оценивает, переводит на русский
+ * и складывает в базу. Также умеет вытаскивать полный текст статьи и переводить его.
  */
 class NewsRepository(
     private val store: NewsStore,
@@ -27,8 +28,20 @@ class NewsRepository(
         val success: Boolean
     )
 
+    data class ReaderResult(
+        val originalText: String,
+        val translatedText: String,
+        val error: String? = null
+    )
+
     private val translator = Translator(store)
     private val semaphore = Semaphore(8)
+
+    private companion object {
+        const val SEPARATOR = "[[[SEP]]]"
+    }
+
+    // ─────────────── Синхронизация ───────────────
 
     suspend fun sync(onProgress: (String) -> Unit = {}): SyncResult = withContext(Dispatchers.IO) {
         val sources = Sources.enabled(prefs)
@@ -85,7 +98,9 @@ class NewsRepository(
             val category = Analyzer.detectCategory(item.title, item.summary, source.category)
             ArticleEntity(
                 title = item.title,
+                titleRu = if (source.lang == "ru") item.title else "",
                 summary = item.summary,
+                summaryRu = if (source.lang == "ru") item.summary else "",
                 link = item.link,
                 imageUrl = item.imageUrl,
                 sourceId = source.id,
@@ -96,7 +111,8 @@ class NewsRepository(
                 publishedAt = item.publishedAt.coerceAtMost(now),
                 fetchedAt = now,
                 score = score,
-                moneyTags = tags.joinToString(", ")
+                moneyTags = tags.joinToString(", "),
+                fullText = item.fullText
             )
         }
 
@@ -104,17 +120,9 @@ class NewsRepository(
 
         onProgress("Добавлено ${fresh.size} новых. Перевожу на русский…")
 
-        var translatedCount = 0
-        val toTranslate = fresh.sortedByDescending { it.score }.take(70)
-        for ((index, article) in toTranslate.withIndex()) {
-            try {
-                translateAndAnalyze(article)
-                translatedCount++
-            } catch (t: Throwable) {
-                // один сбойный материал не должен ломать весь синк
-            }
-            if (index % 5 == 0) {
-                onProgress("Перевод: ${index + 1} из ${toTranslate.size}…")
+        if (fresh.isNotEmpty()) {
+            translatePending(limit = 40) { done, total ->
+                onProgress("Перевод: $done из $total…")
             }
         }
 
@@ -127,57 +135,167 @@ class NewsRepository(
         prefs.lastSyncInfo = message
         onProgress(message)
 
-        SyncResult(fresh.size, translatedCount, ok, failed, message, true)
+        SyncResult(fresh.size, fresh.size, ok, failed, message, true)
     }
 
-    private suspend fun translateAndAnalyze(article: ArticleEntity) {
-        val summaryPiece = article.summary.take(700)
-        val combined = if (summaryPiece.isBlank()) article.title else article.title + "\n\n" + summaryPiece
-        val translated = translator.translate(combined, article.lang)
+    // ─────────────── Перевод ленты ───────────────
 
-        val parts = translated.split("\n\n", limit = 2)
-        val titleRu: String
-        val summaryRu: String
-        if (parts.size == 2) {
-            titleRu = parts[0].trim()
-            summaryRu = parts[1].trim()
-        } else {
-            val byLine = translated.split("\n", limit = 2)
-            if (byLine.size == 2) {
-                titleRu = byLine[0].trim()
-                summaryRu = byLine[1].trim()
-            } else {
-                titleRu = translated.trim()
-                summaryRu = ""
-            }
-        }
-
-        val category = Analyzer.detectCategory(
-            titleRu,
-            summaryRu,
-            Analyzer.detectCategory(article.title, article.summary, article.category)
-        )
-
-        store.applyAnalysis(
-            id = article.id,
-            titleRu = titleRu,
-            summaryRu = summaryRu,
-            score = article.score,
-            tags = article.moneyTags,
-            category = category
-        )
-    }
-
-    suspend fun translatePending(limit: Int = 20): Int = withContext(Dispatchers.IO) {
+    /**
+     * Переводит до [limit] материалов, у которых нет русского заголовка или описания.
+     * @return сколько материалов удалось перевести
+     */
+    suspend fun translatePending(
+        limit: Int = 20,
+        onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }
+    ): Int = withContext(Dispatchers.IO) {
         val pending = store.pendingTranslation(limit)
+        if (pending.isEmpty()) return@withContext 0
         var count = 0
-        for (article in pending) {
-            runCatching {
-                translateAndAnalyze(article)
+        var consecutiveFailures = 0
+        for ((index, article) in pending.withIndex()) {
+            val ok = runCatching { translateArticle(article) }.getOrDefault(false)
+            if (ok) {
                 count++
+                consecutiveFailures = 0
+            } else {
+                consecutiveFailures++
+                if (consecutiveFailures >= 3) break
             }
+            onProgress(index + 1, pending.size)
         }
         count
+    }
+
+    suspend fun translateOne(articleId: Long): Boolean = withContext(Dispatchers.IO) {
+        val article = store.byId(articleId) ?: return@withContext false
+        runCatching { translateArticle(article) }.getOrDefault(false)
+    }
+
+    /**
+     * Переводит заголовок и описание. Сохраняет частичные результаты,
+     * поэтому при сбое сети уже переведённый заголовок остаётся.
+     */
+    private suspend fun translateArticle(article: ArticleEntity): Boolean {
+        if (article.lang == "ru") return false
+
+        var changed = false
+        var titleRu = article.titleRu
+        var summaryRu = article.summaryRu
+
+        if (titleRu.isBlank()) {
+            // Один запрос на заголовок + описание, чтобы экономить лимиты сервиса
+            val summaryPiece = article.summary.take(900)
+            val combined = if (summaryPiece.isBlank()) {
+                article.title
+            } else {
+                article.title + "\n\n" + SEPARATOR + "\n\n" + summaryPiece
+            }
+            val translated = translator.translate(combined, article.lang) ?: return false
+            val parts = translated.split(SEPARATOR)
+            if (parts.size >= 2) {
+                titleRu = parts[0].trim()
+                val summaryTranslated = parts.drop(1).joinToString(" ").trim()
+                if (summaryTranslated.isNotBlank()) {
+                    store.applySummaryTranslation(article.id, summaryTranslated)
+                    summaryRu = summaryTranslated
+                }
+            } else {
+                titleRu = translated.trim()
+            }
+            store.applyTitleTranslation(article.id, titleRu)
+            changed = true
+
+            // Если разделитель «потерялся» — переводим описание отдельно
+            if (summaryPiece.isNotBlank() && summaryRu.isBlank()) {
+                val summaryOnly = translator.translate(summaryPiece, article.lang)
+                if (!summaryOnly.isNullOrBlank()) {
+                    store.applySummaryTranslation(article.id, summaryOnly)
+                    summaryRu = summaryOnly
+                }
+            }
+        } else if (summaryRu.isBlank() && article.summary.isNotBlank()) {
+            val summaryOnly = translator.translate(article.summary.take(900), article.lang)
+            if (!summaryOnly.isNullOrBlank()) {
+                store.applySummaryTranslation(article.id, summaryOnly)
+                summaryRu = summaryOnly
+                changed = true
+            }
+        }
+
+        if (changed) {
+            val category = Analyzer.detectCategory(
+                titleRu,
+                summaryRu,
+                Analyzer.detectCategory(article.title, article.summary, article.category)
+            )
+            store.applyCategory(article.id, category)
+        }
+        return changed
+    }
+
+    // ─────────────── Полный текст статьи ───────────────
+
+    /**
+     * Загружает полный текст статьи со страницы источника и переводит его.
+     * Кэшируется в базе, повторное открытие — мгновенное.
+     */
+    suspend fun readFullArticle(
+        articleId: Long,
+        onStage: (stage: String, progress: Int) -> Unit = { _, _ -> }
+    ): ReaderResult = withContext(Dispatchers.IO) {
+        val article = store.byId(articleId)
+            ?: return@withContext ReaderResult("", "", "Статья не найдена")
+
+        if (article.fullTextRu.isNotBlank()) {
+            return@withContext ReaderResult(article.fullText, article.fullTextRu, null)
+        }
+
+        onStage("Загружаю полный текст…", 5)
+
+        var original = article.fullText
+        if (original.length < 300) {
+            val html = Http.get(article.link)
+            if (!html.isNullOrBlank()) {
+                val extracted = runCatching { ArticleExtractor.extract(html, article.link) }
+                    .getOrNull()
+                if (extracted != null && extracted.text.length >= 300) {
+                    original = extracted.text
+                    store.setFullText(article.id, original, "")
+                }
+            }
+        }
+
+        var note: String? = null
+        if (original.length < 300) {
+            // Источник закрыт пейволом или отдаёт контент только JS
+            val fallback = listOf(article.summary, article.title)
+                .filter { it.isNotBlank() }
+                .joinToString("\n\n")
+            if (fallback.isBlank()) {
+                return@withContext ReaderResult("", "", "Не удалось получить текст статьи")
+            }
+            return@withContext ReaderResult(
+                fallback,
+                "",
+                "Источник не отдал полный текст — показываю анонс. Откройте оригинал по кнопке ниже."
+            )
+        }
+
+        onStage("Перевожу статью на русский…", 10)
+        val translated = translator.translateLong(original, article.lang) { percent ->
+            onStage("Перевожу статью на русский…", 10 + (percent * 0.85).toInt())
+        }
+        if (translated.isNullOrBlank()) {
+            return@withContext ReaderResult(
+                original,
+                "",
+                "Сервис перевода недоступен. Текст загружен, перевод повторится при следующем открытии."
+            )
+        }
+
+        store.setFullText(article.id, original, translated)
+        onStage("Готово", 100)
+        ReaderResult(original, translated, note)
     }
 
     fun isRussianText(text: String): Boolean = translator.isRussian(text)

@@ -19,7 +19,8 @@ object FeedParser {
         val summary: String,
         val link: String,
         val imageUrl: String,
-        val publishedAt: Long
+        val publishedAt: Long,
+        val fullText: String = ""
     )
 
     private val rfc1123: DateTimeFormatter =
@@ -68,14 +69,23 @@ object FeedParser {
             }
         }
 
-        val rawSummary = sequenceOf(
-            node.selectFirst("description"),
-            node.selectFirst("summary"),
-            node.selectFirst("content"),
-            node.selectFirst("encoded")
-        ).firstOrNull { it != null && it.text().isNotBlank() }?.text().orEmpty()
+        val rawSummary = sequenceOf("description", "summary", "content", "encoded")
+            .mapNotNull { tag -> firstText(node, tag) }
+            .firstOrNull { it.isNotBlank() }
+            .orEmpty()
 
         val summary = cleanHtml(rawSummary).take(900)
+
+        // Полный текст из ленты (content:encoded часто содержит всю статью)
+        val rawContent = sequenceOf("encoded", "content")
+            .mapNotNull { tag -> firstText(node, tag) }
+            .maxByOrNull { it.length }
+            .orEmpty()
+        val feedFullText = if (rawContent.length > rawSummary.length + 300) {
+            cleanHtml(rawContent).take(12000)
+        } else {
+            ""
+        }
 
         val image = findImage(node)
 
@@ -89,7 +99,8 @@ object FeedParser {
             summary = summary,
             link = link,
             imageUrl = image,
-            publishedAt = parseDate(dateText)
+            publishedAt = parseDate(dateText),
+            fullText = feedFullText
         )
     }
 

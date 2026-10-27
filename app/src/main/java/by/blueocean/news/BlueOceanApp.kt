@@ -11,6 +11,7 @@ class BlueOceanApp : Application() {
         Notifications.createChannels(this)
         val prefs = AppPrefs(this)
         WorkScheduler.scheduleSync(this, prefs.syncIntervalHours, prefs.wifiOnly)
+        WorkScheduler.scheduleTranslation(this)
         WorkScheduler.scheduleUpdateCheck(this)
     }
 }

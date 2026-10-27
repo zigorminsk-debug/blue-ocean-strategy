@@ -57,13 +57,15 @@ fun FeedScreen(
     onInstallUpdate: () -> Unit,
     onDismissUpdate: () -> Unit,
     onSkipVersion: (String) -> Unit,
-    onTranslateMore: () -> Unit
+    onTranslateAll: () -> Unit,
+    onTranslateArticle: (ArticleEntity) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         ScreenHeader(
             title = "Blue Ocean IT",
             subtitle = buildString {
-                append("${state.total} материалов · перевод на русский")
+                val translated = state.sync.translatedArticles.coerceAtMost(state.sync.totalArticles)
+                append("${state.total} материалов · переведено $translated")
                 if (state.sync.status.isNotBlank()) {
                     append(" · ")
                     append(state.sync.status)
@@ -160,7 +162,7 @@ fun FeedScreen(
                     }
                 }
 
-                if (state.sync.translationQueue > 0) {
+                if (state.sync.translating || state.sync.translationQueue > 0) {
                     item("translate_queue") {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
@@ -169,18 +171,27 @@ fun FeedScreen(
                             ),
                             shape = RoundedCornerShape(16.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Перевод в очереди: ${state.sync.translationQueue}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                TextButton(onClick = onTranslateMore) {
-                                    Text("Перевести")
+                            Column(modifier = Modifier.padding(start = 14.dp, end = 8.dp, top = 10.dp, bottom = 8.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = if (state.sync.translating)
+                                            "Перевожу на русский: осталось ${state.sync.translationQueue}"
+                                        else
+                                            "Без перевода: ${state.sync.translationQueue}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    TextButton(onClick = onTranslateAll, enabled = !state.sync.translating) {
+                                        Text(if (state.sync.translating) "Идёт перевод…" else "Перевести всё")
+                                    }
+                                }
+                                if (state.sync.translating) {
+                                    LinearProgressIndicator(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        trackColor = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.2f)
+                                    )
                                 }
                             }
                         }
@@ -203,7 +214,12 @@ fun FeedScreen(
                     ArticleCard(
                         article = article,
                         onClick = { onOpen(article) },
-                        onToggleSave = { onToggleSave(article) }
+                        onToggleSave = { onToggleSave(article) },
+                        onTranslate = if (!article.hasTranslation && article.lang != "ru") {
+                            { onTranslateArticle(article) }
+                        } else {
+                            null
+                        }
                     )
                 }
             }

@@ -5,6 +5,7 @@ import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
@@ -29,6 +30,22 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
     }
 }
 
+/**
+ * Догоняющий перевод: добирает всё, что осталось без русского перевода
+ * (старые материалы, неудачные попытки, отключённая сеть).
+ */
+class TranslationWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
+    override suspend fun doWork(): Result {
+        return try {
+            val repo = NewsRepository.get(applicationContext)
+            repo.translatePending(limit = 40)
+            Result.success()
+        } catch (t: Throwable) {
+            Result.success()
+        }
+    }
+}
+
 class UpdateCheckWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         return try {
@@ -49,6 +66,7 @@ object WorkScheduler {
 
     private const val SYNC_WORK = "blue_ocean_sync"
     private const val UPDATE_WORK = "blue_ocean_update_check"
+    private const val TRANSLATION_WORK = "blue_ocean_translation"
 
     fun scheduleSync(context: Context, intervalHours: Int, wifiOnly: Boolean = false) {
         val hours = intervalHours.coerceAtLeast(1).toLong()
@@ -61,6 +79,20 @@ object WorkScheduler {
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             SYNC_WORK,
             ExistingPeriodicWorkPolicy.UPDATE,
+            request
+        )
+    }
+
+    fun scheduleTranslation(context: Context) {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+        val request = PeriodicWorkRequestBuilder<TranslationWorker>(15, TimeUnit.MINUTES)
+            .setConstraints(constraints)
+            .build()
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            TRANSLATION_WORK,
+            ExistingPeriodicWorkPolicy.KEEP,
             request
         )
     }
@@ -80,7 +112,7 @@ object WorkScheduler {
     }
 
     fun syncNow(context: Context) {
-        val request = androidx.work.OneTimeWorkRequestBuilder<SyncWorker>().build()
+        val request = OneTimeWorkRequestBuilder<SyncWorker>().build()
         WorkManager.getInstance(context).enqueue(request)
     }
 }

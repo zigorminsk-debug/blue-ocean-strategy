@@ -1,6 +1,7 @@
 package by.blueocean.news
 
 import by.blueocean.news.data.Analyzer
+import by.blueocean.news.data.ArticleExtractor
 import by.blueocean.news.data.ArticleEntity
 import by.blueocean.news.data.Directions
 import by.blueocean.news.data.FeedParser
@@ -64,6 +65,26 @@ class FeedParserTest {
         assertEquals(1, items.size)
         assertEquals("https://example.org/robots", items.first().link)
         assertTrue(items.first().title.contains("Robot"))
+    }
+
+    @Test
+    fun extractsFullTextFromEncodedContent() {
+        val longText = (1..40).joinToString(" ") { "Предложение номер $it про технологии и деньги." }
+        val xml = """
+            <rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+              <channel>
+                <item>
+                  <title>Big story</title>
+                  <link>https://example.com/big</link>
+                  <description>Короткий анонс</description>
+                  <content:encoded><![CDATA[<p>$longText</p>]]></content:encoded>
+                </item>
+              </channel>
+            </rss>
+        """.trimIndent()
+        val item = FeedParser.parse(xml, "test").first()
+        assertTrue("full text must be extracted, got ${item.fullText.length}", item.fullText.length > 500)
+        assertFalse(item.fullText.contains("<p>"))
     }
 
     @Test
@@ -182,6 +203,64 @@ class SourcesTest {
         assertEquals(Sources.ALL.size, Sources.ALL.map { it.url }.toSet().size)
         Sources.ALL.forEach { source ->
             assertTrue(source.url, source.url.startsWith("https://") || source.url.startsWith("http://"))
+        }
+    }
+}
+
+class ArticleExtractorTest {
+
+    @Test
+    fun extractsArticleBodyFromHtml() {
+        val paragraph = (1..12).joinToString(" ") { "Это содержательный абзац номер $it о рынке технологий." }
+        val html = """
+            <html><head><title>Заголовок статьи</title></head>
+            <body>
+              <nav><a href="/">Главная</a><a href="/news">Новости</a></nav>
+              <article>
+                <h1>Заголовок статьи</h1>
+                <p>$paragraph</p>
+                <p>$paragraph</p>
+                <p>$paragraph</p>
+                <div class="share">Поделиться</div>
+              </article>
+              <footer>Все права защищены</footer>
+            </body></html>
+        """.trimIndent()
+        val result = ArticleExtractor.extract(html, "https://example.com/a")
+        assertTrue("text: ${result.text.take(200)}", result.text.length > 300)
+        assertTrue(result.text.contains("содержательный абзац"))
+        assertEquals("Заголовок статьи", result.title)
+    }
+
+    @Test
+    fun emptyHtmlGivesEmptyText() {
+        assertEquals("", ArticleExtractor.extract("", "https://example.com").text)
+    }
+
+    @Test
+    fun chunkSplitsLongText() {
+        val translatorText = (1..60).joinToString(" ") { "Предложение $it." }
+        val chunks = TranslatorChunkHelper.chunk(translatorText, 100)
+        assertTrue(chunks.size > 5)
+        chunks.forEach { assertTrue("chunk too long: ${it.length}", it.length <= 130) }
+    }
+}
+
+class TranslatorChunkHelper {
+    companion object {
+        fun chunk(text: String, max: Int): List<String> {
+            if (text.length <= max) return listOf(text)
+            val chunks = mutableListOf<String>()
+            var rest = text
+            while (rest.length > max) {
+                var cut = rest.lastIndexOf(". ", max)
+                if (cut < max / 2) cut = rest.lastIndexOf(' ', max)
+                if (cut < max / 3) cut = max
+                chunks.add(rest.substring(0, cut + 1).trim())
+                rest = rest.substring(cut + 1)
+            }
+            if (rest.isNotBlank()) chunks.add(rest.trim())
+            return chunks
         }
     }
 }

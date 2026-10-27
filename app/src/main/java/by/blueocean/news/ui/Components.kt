@@ -45,7 +45,8 @@ fun ArticleCard(
     article: ArticleEntity,
     onClick: () -> Unit,
     onToggleSave: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onTranslate: (() -> Unit)? = null
 ) {
     Card(
         modifier = modifier
@@ -147,6 +148,28 @@ fun ArticleCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+            } else if (onTranslate != null) {
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Показан оригинал",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Surface(
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.clickable(onClick = onTranslate)
+                    ) {
+                        Text(
+                            text = "Перевести",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                }
             }
         }
     }

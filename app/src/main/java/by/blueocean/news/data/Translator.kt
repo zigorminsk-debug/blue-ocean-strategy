@@ -9,21 +9,25 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 
 /**
- * Бесплатный переводчик на русский язык с кэшем в SQLite.
+ * Перевод на русский язык с кэшем в SQLite.
  *
- * Используется публичный эндпоинт Google Translate (тот же, что у веб-виджета),
- * при ошибке — резервный сервис MyMemory. Все переводы кэшируются, поэтому
- * повторный синк не тратит трафик и не упирается в лимиты.
+ * Основной канал — публичный эндпоинт Google Translate (тот же, что у веб-виджета),
+ * резервный — MyMemory. Возвращает null при ошибке, чтобы вызывающий код мог
+ * повторить перевод позже и не сохранял английский текст как «перевод».
  */
 class Translator(private val store: NewsStore) {
 
     private val rateLock = Mutex()
 
-    suspend fun translate(text: String, sourceLang: String): String {
+    /**
+     * Переводит короткий текст (заголовок, описание).
+     * @return перевод или null, если сервис недоступен.
+     */
+    suspend fun translate(text: String, sourceLang: String): String? {
         val clean = text.trim()
         if (clean.isEmpty()) return ""
         if (sourceLang == "ru" || isRussian(clean)) return clean
-        if (clean.length < 3) return clean
+        if (clean.length < 2) return clean
 
         val cacheKey = "$sourceLang|$clean"
         store.translationGet(cacheKey)?.let { return it }
@@ -31,11 +35,39 @@ class Translator(private val store: NewsStore) {
         val limit = if (clean.length > 4500) clean.take(4500) else clean
         var result = google(limit)
         if (result.isNullOrBlank()) result = myMemory(limit)
-        val finalResult = result?.takeIf { it.isNotBlank() } ?: return clean
+        val finalResult = result?.takeIf { it.isNotBlank() } ?: return null
 
         store.translationPut(cacheKey, finalResult)
         return finalResult
     }
+
+    /**
+     * Переводит длинный текст (полная статья) частями по абзацам.
+     * @param onProgress процент выполненного перевода 0..100
+     */
+    suspend fun translateLong(
+        text: String,
+        sourceLang: String,
+        maxChars: Int = MAX_FULLTEXT_CHARS,
+        onProgress: (Int) -> Unit = {}
+    ): String? {
+        if (text.isBlank()) return ""
+        if (sourceLang == "ru" || isRussian(text)) return text
+
+        val limited = if (text.length > maxChars) text.take(maxChars) else text
+        val chunks = chunk(limited, 3400)
+        if (chunks.isEmpty()) return null
+
+        val out = StringBuilder()
+        chunks.forEachIndexed { index, chunk ->
+            val part = translate(chunk, sourceLang) ?: return null
+            out.append(part.trim()).append("\n\n")
+            onProgress(((index + 1) * 100) / chunks.size)
+        }
+        return out.toString().trim()
+    }
+
+    suspend fun isAvailable(): Boolean = google("hello") != null
 
     private suspend fun google(text: String): String? = withContext(Dispatchers.IO) {
         rateLock.withLock {
@@ -81,20 +113,42 @@ class Translator(private val store: NewsStore) {
         }
     }
 
-    private fun splitForApi(text: String, max: Int): List<String> {
+    /** Делит текст по абзацам/предложениям на куски не длиннее max. */
+    fun chunk(text: String, max: Int): List<String> {
         if (text.length <= max) return listOf(text)
         val chunks = mutableListOf<String>()
-        var rest = text
-        while (rest.length > max) {
-            var cut = rest.lastIndexOf(". ", max)
-            if (cut < max / 2) cut = rest.lastIndexOf(' ', max)
-            if (cut < max / 3) cut = max
-            chunks.add(rest.substring(0, cut + 1).trim())
-            rest = rest.substring(cut + 1)
+        val paragraphs = text.split("\n\n")
+        val current = StringBuilder()
+
+        fun flush() {
+            if (current.isNotBlank()) {
+                chunks.add(current.toString().trim())
+                current.setLength(0)
+            }
         }
-        if (rest.isNotBlank()) chunks.add(rest.trim())
+
+        for (paragraph in paragraphs) {
+            if (paragraph.length > max) {
+                flush()
+                var rest = paragraph
+                while (rest.length > max) {
+                    var cut = rest.lastIndexOf(". ", max)
+                    if (cut < max / 2) cut = rest.lastIndexOf(' ', max)
+                    if (cut < max / 3) cut = max
+                    chunks.add(rest.substring(0, cut + 1).trim())
+                    rest = rest.substring(cut + 1)
+                }
+                if (rest.isNotBlank()) chunks.add(rest.trim())
+                continue
+            }
+            if (current.length + paragraph.length + 2 > max) flush()
+            current.append(paragraph.trim()).append("\n\n")
+        }
+        flush()
         return chunks
     }
+
+    private fun splitForApi(text: String, max: Int): List<String> = chunk(text, max)
 
     fun isRussian(text: String): Boolean {
         if (text.isBlank()) return false
@@ -116,4 +170,8 @@ class Translator(private val store: NewsStore) {
         .replace("&lt;", "<")
         .replace("&gt;", ">")
         .replace("&nbsp;", " ")
+
+    companion object {
+        const val MAX_FULLTEXT_CHARS = 14000
+    }
 }

@@ -39,6 +39,7 @@ fun AppRoot(viewModel: AppViewModel, openUpdatesInitially: Boolean = false) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val update by viewModel.update.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val reader by viewModel.reader.collectAsStateWithLifecycle()
 
     var tab by rememberSaveable { mutableStateOf(0) }
     var detailId by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -51,7 +52,17 @@ fun AppRoot(viewModel: AppViewModel, openUpdatesInitially: Boolean = false) {
         }
     }
 
-    BackHandler(enabled = detailArticle != null) { detailId = null }
+    val openArticle: (by.blueocean.news.data.ArticleEntity) -> Unit = { article ->
+        detailId = article.id
+        viewModel.openArticle(article)
+    }
+
+    val closeArticle: () -> Unit = {
+        detailId = null
+        viewModel.closeArticle()
+    }
+
+    BackHandler(enabled = detailArticle != null) { closeArticle() }
 
     Scaffold(
         bottomBar = {
@@ -72,10 +83,13 @@ fun AppRoot(viewModel: AppViewModel, openUpdatesInitially: Boolean = false) {
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             val current = detailArticle
             when {
-                current != null -> DetailScreen(
+                current != null -> ReaderScreen(
                     article = current,
-                    onBack = { detailId = null },
-                    onToggleSave = { viewModel.toggleSaved(current) }
+                    reader = reader,
+                    onBack = closeArticle,
+                    onToggleSave = { viewModel.toggleSaved(current) },
+                    onToggleOriginal = viewModel::toggleReaderOriginal,
+                    onRetry = viewModel::retryReader
                 )
                 tab == 0 -> FeedScreen(
                     state = state,
@@ -84,15 +98,13 @@ fun AppRoot(viewModel: AppViewModel, openUpdatesInitially: Boolean = false) {
                     onQuery = viewModel::setQuery,
                     onCategory = viewModel::setCategory,
                     onToggleSavedOnly = viewModel::toggleSavedOnly,
-                    onOpen = { article ->
-                        viewModel.markRead(article)
-                        detailId = article.id
-                    },
+                    onOpen = openArticle,
                     onToggleSave = viewModel::toggleSaved,
                     onInstallUpdate = viewModel::downloadAndInstall,
                     onDismissUpdate = viewModel::dismissUpdateBanner,
                     onSkipVersion = viewModel::skipVersion,
-                    onTranslateMore = viewModel::translateMore
+                    onTranslateAll = viewModel::translateAll,
+                    onTranslateArticle = viewModel::translateArticle
                 )
                 tab == 1 -> TrendsScreen(
                     articles = state.all,
@@ -101,17 +113,11 @@ fun AppRoot(viewModel: AppViewModel, openUpdatesInitially: Boolean = false) {
                         viewModel.setQuery(word)
                         tab = 0
                     },
-                    onOpen = { article ->
-                        viewModel.markRead(article)
-                        detailId = article.id
-                    }
+                    onOpen = openArticle
                 )
                 tab == 2 -> IdeasScreen(
                     articles = state.all,
-                    onOpen = { article ->
-                        viewModel.markRead(article)
-                        detailId = article.id
-                    },
+                    onOpen = openArticle,
                     onToggleSave = viewModel::toggleSaved
                 )
                 else -> SettingsScreen(
@@ -131,7 +137,7 @@ fun AppRoot(viewModel: AppViewModel, openUpdatesInitially: Boolean = false) {
                     onResetSources = viewModel::resetSources,
                     onCheckUpdate = { viewModel.checkUpdate(manual = true) },
                     onInstallUpdate = viewModel::downloadAndInstall,
-                    onTranslateMore = viewModel::translateMore,
+                    onTranslateAll = viewModel::translateAll,
                     onOpenInstallPermission = viewModel::openInstallPermission
                 )
             }

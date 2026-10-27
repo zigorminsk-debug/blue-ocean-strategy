@@ -58,7 +58,7 @@ fun SettingsScreen(
     onResetSources: () -> Unit,
     onCheckUpdate: () -> Unit,
     onInstallUpdate: () -> Unit,
-    onTranslateMore: () -> Unit,
+    onTranslateAll: () -> Unit,
     onOpenInstallPermission: () -> Unit
 ) {
     val context = LocalContext.current
@@ -232,15 +232,40 @@ fun SettingsScreen(
                         )
                     }
                 }
+                Spacer(Modifier.height(10.dp))
+                HorizontalDivider()
                 Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "Перевод на русский",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "Переведено ${sync.translatedArticles} из ${sync.totalArticles} материалов ленты. " +
+                        "Очередь: ${sync.translationQueue}. Перевод идёт автоматически в фоне; " +
+                        "полный текст открытой статьи переводится отдельно.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(4.dp))
+                LinearProgressIndicator(
+                    progress = {
+                        if (sync.totalArticles == 0) 0f
+                        else (sync.translatedArticles.toFloat() / sync.totalArticles).coerceIn(0f, 1f)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "В очереди на перевод: ${sync.translationQueue}",
-                        style = MaterialTheme.typography.bodySmall,
+                        text = if (sync.translating) "Идёт перевод…" else "Перевод запускается автоматически",
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f)
                     )
-                    TextButton(onClick = onTranslateMore) { Text("Перевести") }
+                    TextButton(onClick = onTranslateAll, enabled = !sync.translating) {
+                        Text("Перевести всё")
+                    }
                 }
                 if (sync.lastSync > 0) {
                     Text(

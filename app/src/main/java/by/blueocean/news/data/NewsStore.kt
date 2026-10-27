@@ -39,7 +39,9 @@ class NewsStore(context: Context) : SQLiteOpenHelper(context, DB_NAME, null, DB_
                 score INTEGER NOT NULL DEFAULT 0,
                 moneyTags TEXT NOT NULL DEFAULT '',
                 isRead INTEGER NOT NULL DEFAULT 0,
-                isSaved INTEGER NOT NULL DEFAULT 0
+                isSaved INTEGER NOT NULL DEFAULT 0,
+                fullText TEXT NOT NULL DEFAULT '',
+                fullTextRu TEXT NOT NULL DEFAULT ''
             )
             """.trimIndent()
         )
@@ -57,9 +59,10 @@ class NewsStore(context: Context) : SQLiteOpenHelper(context, DB_NAME, null, DB_
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        db.execSQL("DROP TABLE IF EXISTS articles")
-        db.execSQL("DROP TABLE IF EXISTS translations")
-        onCreate(db)
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE articles ADD COLUMN fullText TEXT NOT NULL DEFAULT ''")
+            db.execSQL("ALTER TABLE articles ADD COLUMN fullTextRu TEXT NOT NULL DEFAULT ''")
+        }
     }
 
     // ─────────────── Статьи ───────────────
@@ -114,17 +117,37 @@ class NewsStore(context: Context) : SQLiteOpenHelper(context, DB_NAME, null, DB_
         }
     }
 
+    fun byId(id: Long): ArticleEntity? {
+        readableDatabase.rawQuery(
+            "SELECT * FROM articles WHERE id = ? LIMIT 1",
+            arrayOf(id.toString())
+        ).use { cursor ->
+            return if (cursor.moveToFirst()) fromCursor(cursor) else null
+        }
+    }
+
     fun count(): Int {
         readableDatabase.rawQuery("SELECT COUNT(*) FROM articles", null).use { cursor ->
             return if (cursor.moveToFirst()) cursor.getInt(0) else 0
         }
     }
 
-    fun pendingTranslationCount(): Int {
-        readableDatabase.rawQuery(
-            "SELECT COUNT(*) FROM articles WHERE lang <> 'ru' AND titleRu = ''",
-            null
-        ).use { cursor ->
+    /** Сколько материалов ещё без перевода заголовка. */
+    fun pendingTranslationCount(): Int = countOf(
+        "SELECT COUNT(*) FROM articles WHERE lang <> 'ru' AND titleRu = ''"
+    )
+
+    /** Сколько материалов с непереведённым описанием (заголовок уже переведён). */
+    fun pendingSummaryCount(): Int = countOf(
+        "SELECT COUNT(*) FROM articles WHERE lang <> 'ru' AND titleRu <> '' AND summary <> '' AND summaryRu = ''"
+    )
+
+    fun translatedCount(): Int = countOf(
+        "SELECT COUNT(*) FROM articles WHERE lang = 'ru' OR titleRu <> ''"
+    )
+
+    private fun countOf(sql: String): Int {
+        readableDatabase.rawQuery(sql, null).use { cursor ->
             return if (cursor.moveToFirst()) cursor.getInt(0) else 0
         }
     }
@@ -132,7 +155,12 @@ class NewsStore(context: Context) : SQLiteOpenHelper(context, DB_NAME, null, DB_
     fun pendingTranslation(limit: Int): List<ArticleEntity> {
         val result = mutableListOf<ArticleEntity>()
         readableDatabase.rawQuery(
-            "SELECT * FROM articles WHERE lang <> 'ru' AND titleRu = '' ORDER BY score DESC, publishedAt DESC LIMIT ?",
+            """
+            SELECT * FROM articles
+            WHERE lang <> 'ru' AND (titleRu = '' OR (summary <> '' AND summaryRu = ''))
+            ORDER BY publishedAt DESC
+            LIMIT ?
+            """.trimIndent(),
             arrayOf(limit.toString())
         ).use { cursor ->
             while (cursor.moveToNext()) result.add(fromCursor(cursor))
@@ -158,6 +186,36 @@ class NewsStore(context: Context) : SQLiteOpenHelper(context, DB_NAME, null, DB_
             put("score", score)
             put("moneyTags", tags)
             put("category", category)
+        }
+        writableDatabase.update(TABLE_ARTICLES, values, "id = ?", arrayOf(id.toString()))
+    }
+
+    fun applyTitleTranslation(id: Long, titleRu: String) {
+        val values = ContentValues().apply { put("titleRu", titleRu) }
+        writableDatabase.update(TABLE_ARTICLES, values, "id = ?", arrayOf(id.toString()))
+    }
+
+    fun applySummaryTranslation(id: Long, summaryRu: String) {
+        val values = ContentValues().apply { put("summaryRu", summaryRu) }
+        writableDatabase.update(TABLE_ARTICLES, values, "id = ?", arrayOf(id.toString()))
+    }
+
+    fun applyCategory(id: Long, category: String) {
+        val values = ContentValues().apply { put("category", category) }
+        writableDatabase.update(TABLE_ARTICLES, values, "id = ?", arrayOf(id.toString()))
+    }
+
+    fun clearFullText(id: Long) {
+        writableDatabase.execSQL(
+            "UPDATE articles SET fullText = '', fullTextRu = '' WHERE id = ?",
+            arrayOf(id)
+        )
+    }
+
+    fun setFullText(id: Long, original: String, translated: String) {
+        val values = ContentValues().apply {
+            put("fullText", original)
+            put("fullTextRu", translated)
         }
         writableDatabase.update(TABLE_ARTICLES, values, "id = ?", arrayOf(id.toString()))
     }
@@ -211,6 +269,8 @@ class NewsStore(context: Context) : SQLiteOpenHelper(context, DB_NAME, null, DB_
         put("moneyTags", item.moneyTags)
         put("isRead", if (item.isRead) 1 else 0)
         put("isSaved", if (item.isSaved) 1 else 0)
+        put("fullText", item.fullText)
+        put("fullTextRu", item.fullTextRu)
     }
 
     private fun fromCursor(cursor: Cursor): ArticleEntity = ArticleEntity(
@@ -231,7 +291,9 @@ class NewsStore(context: Context) : SQLiteOpenHelper(context, DB_NAME, null, DB_
         score = cursor.getInt(cursor.getColumnIndexOrThrow("score")),
         moneyTags = cursor.getString(cursor.getColumnIndexOrThrow("moneyTags")),
         isRead = cursor.getInt(cursor.getColumnIndexOrThrow("isRead")) == 1,
-        isSaved = cursor.getInt(cursor.getColumnIndexOrThrow("isSaved")) == 1
+        isSaved = cursor.getInt(cursor.getColumnIndexOrThrow("isSaved")) == 1,
+        fullText = cursor.getString(cursor.getColumnIndexOrThrow("fullText")),
+        fullTextRu = cursor.getString(cursor.getColumnIndexOrThrow("fullTextRu"))
     )
 
     private fun hashOf(text: String): String {
@@ -241,7 +303,7 @@ class NewsStore(context: Context) : SQLiteOpenHelper(context, DB_NAME, null, DB_
 
     companion object {
         private const val DB_NAME = "blue_ocean.db"
-        private const val DB_VERSION = 1
+        private const val DB_VERSION = 2
         private const val TABLE_ARTICLES = "articles"
         private const val TABLE_TRANSLATIONS = "translations"
 
