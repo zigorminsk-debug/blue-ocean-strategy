@@ -6,10 +6,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -24,19 +22,13 @@ import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Translate
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -59,9 +51,11 @@ import coil.request.ImageRequest
 
 /**
  * Экран чтения: полный текст статьи внутри приложения + перевод на русский.
+ * Колонка текста ограничена по ширине и центрируется на планшетах.
  */
 @Composable
 fun ReaderScreen(
+    window: WindowInfo,
     article: ArticleEntity,
     reader: ReaderState,
     onBack: () -> Unit,
@@ -70,7 +64,9 @@ fun ReaderScreen(
     onRetry: () -> Unit
 ) {
     val context = LocalContext.current
-    var fontSize by remember { mutableFloatStateOf(16f) }
+    var fontSize by remember(article.id) {
+        mutableFloatStateOf(if (window.isExpanded) 18f else 16f)
+    }
     val directions = remember(article.id) {
         Directions.match(article.displayTitle + " " + article.displaySummary)
     }
@@ -81,16 +77,19 @@ fun ReaderScreen(
         else -> ""
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    AppScreen(window = window, maxWidth = if (window.isExpanded) 860.dp else window.contentMaxWidth) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 6.dp, end = 8.dp, top = 6.dp, bottom = 2.dp),
+                .padding(start = window.edgePadding - 8.dp, end = window.edgePadding - 8.dp, top = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
-            }
+            AppIconButton(
+                icon = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Назад",
+                onClick = onBack
+            )
+            Spacer(Modifier.width(4.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = article.sourceName,
@@ -100,57 +99,74 @@ fun ReaderScreen(
                 Text(
                     text = "${article.region} · ${Format.ago(article.publishedAt)}",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
                 )
             }
-            IconButton(onClick = { fontSize = (fontSize - 1f).coerceAtLeast(13f) }) {
-                Text("А−", style = MaterialTheme.typography.labelLarge)
-            }
-            IconButton(onClick = { fontSize = (fontSize + 1f).coerceAtMost(24f) }) {
-                Text("А+", style = MaterialTheme.typography.labelLarge)
-            }
-            IconButton(onClick = onToggleSave) {
-                Icon(
-                    imageVector = if (article.isSaved) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
-                    contentDescription = "Сохранить",
-                    tint = if (article.isSaved) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            AppTextButton(
+                label = "А−",
+                contentDescription = "Уменьшить шрифт",
+                onClick = { fontSize = (fontSize - 1f).coerceAtLeast(13f) },
+                enabled = fontSize > 13f
+            )
+            AppTextButton(
+                label = "А+",
+                contentDescription = "Увеличить шрифт",
+                onClick = { fontSize = (fontSize + 1f).coerceAtMost(24f) },
+                enabled = fontSize < 24f
+            )
+            AppIconButton(
+                icon = if (article.isSaved) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
+                contentDescription = "Сохранить",
+                onClick = onToggleSave,
+                active = article.isSaved
+            )
+            AppIconButton(
+                icon = Icons.Filled.Share,
+                contentDescription = "Поделиться",
+                onClick = {
+                    val send = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_SUBJECT, article.displayTitle)
+                        putExtra(Intent.EXTRA_TEXT, "${article.displayTitle}\n\n${article.link}")
+                    }
+                    runCatching { context.startActivity(Intent.createChooser(send, "Поделиться")) }
+                }
+            )
         }
 
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 28.dp),
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            contentPadding = window.listPadding(bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item("head") {
                 Column {
                     Text(
                         text = article.displayTitle,
-                        style = MaterialTheme.typography.headlineSmall,
+                        style = if (window.isExpanded) MaterialTheme.typography.headlineMedium
+                        else MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(Modifier.height(8.dp))
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Tag(
-                            article.category,
-                            MaterialTheme.colorScheme.primaryContainer,
-                            MaterialTheme.colorScheme.onPrimaryContainer
+                    AppButtonRow {
+                        AppTag(
+                            text = article.category,
+                            container = MaterialTheme.colorScheme.primaryContainer,
+                            content = MaterialTheme.colorScheme.onPrimaryContainer
                         )
-                        Tag(
-                            article.region,
-                            MaterialTheme.colorScheme.surfaceVariant,
-                            MaterialTheme.colorScheme.onSurfaceVariant
+                        AppTag(
+                            text = article.region,
+                            container = MaterialTheme.colorScheme.surfaceVariant,
+                            content = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         if (article.score >= 8) {
-                            Tag(
-                                "потенциал ${article.score}",
-                                MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f),
-                                MaterialTheme.colorScheme.tertiary
+                            AppTag(
+                                text = "потенциал ${article.score}",
+                                container = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f),
+                                content = MaterialTheme.colorScheme.tertiary
                             )
                         }
                     }
@@ -174,39 +190,44 @@ fun ReaderScreen(
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(190.dp)
-                            .clip(RoundedCornerShape(18.dp))
+                            .height(if (window.isExpanded) 280.dp else 190.dp)
+                            .clip(RoundedCornerShape(AppShapes.card))
                             .background(MaterialTheme.colorScheme.surfaceVariant)
                     )
                 }
             }
 
-            // Переключатель «Перевод / Оригинал»
             item("switch") {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (article.lang != "ru") {
-                        AssistChip(
+                        AppChip(
+                            text = "Перевод",
                             onClick = { if (reader.showOriginal) onToggleOriginal() },
-                            label = { Text("🇷🇺 Перевод") },
-                            shape = RoundedCornerShape(10.dp)
+                            selected = !reader.showOriginal,
+                            leadingEmoji = "🇷🇺",
+                            compact = true
                         )
                         Spacer(Modifier.width(8.dp))
-                        AssistChip(
+                        AppChip(
+                            text = "Оригинал (${article.lang})",
                             onClick = { if (!reader.showOriginal) onToggleOriginal() },
-                            label = { Text("🌐 Оригинал (${article.lang})") },
-                            shape = RoundedCornerShape(10.dp)
+                            selected = reader.showOriginal,
+                            leadingEmoji = "🌐",
+                            compact = true
                         )
                     } else {
-                        AssistChip(
+                        AppChip(
+                            text = "Русский источник",
                             onClick = { },
-                            label = { Text("🇷🇺 Русский источник") },
-                            shape = RoundedCornerShape(10.dp)
+                            selected = true,
+                            leadingEmoji = "🇷🇺",
+                            compact = true
                         )
                     }
                     Spacer(Modifier.weight(1f))
                     if (bodyText.isNotBlank()) {
                         Text(
-                            text = "${ArticleExtractor.readingMinutes(bodyText)} мин чтения",
+                            text = "${ArticleExtractor.readingMinutes(bodyText)} мин",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -218,7 +239,7 @@ fun ReaderScreen(
                 item("loading") {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(18.dp),
+                        shape = RoundedCornerShape(AppShapes.card),
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surface
                         )
@@ -255,7 +276,7 @@ fun ReaderScreen(
                 item("error") {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(AppShapes.card),
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.errorContainer
                         )
@@ -266,33 +287,45 @@ fun ReaderScreen(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onErrorContainer
                             )
-                            Spacer(Modifier.height(6.dp))
-                            Row {
-                                TextButton(onClick = onRetry) {
-                                    Text("Повторить", color = MaterialTheme.colorScheme.onErrorContainer)
-                                }
-                                TextButton(onClick = {
-                                    runCatching {
-                                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(article.link)))
-                                    }
-                                }) {
-                                    Text("Открыть оригинал", color = MaterialTheme.colorScheme.onErrorContainer)
-                                }
+                            Spacer(Modifier.height(10.dp))
+                            AppButtonRow {
+                                AppButton(
+                                    text = "Повторить",
+                                    onClick = onRetry,
+                                    style = AppButtonStyle.Danger,
+                                    size = AppButtonSize.Small
+                                )
+                                AppButton(
+                                    text = "Открыть оригинал",
+                                    onClick = {
+                                        runCatching {
+                                            context.startActivity(
+                                                Intent(Intent.ACTION_VIEW, Uri.parse(article.link))
+                                            )
+                                        }
+                                    },
+                                    style = AppButtonStyle.Outline,
+                                    size = AppButtonSize.Small
+                                )
                             }
                         }
                     }
                 }
             }
 
-            // Основной текст
             if (bodyText.isNotBlank()) {
                 item("body") {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(18.dp),
+                        shape = RoundedCornerShape(AppShapes.card),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
+                        Column(
+                            modifier = Modifier.padding(
+                                horizontal = if (window.isExpanded) 28.dp else 16.dp,
+                                vertical = 18.dp
+                            )
+                        ) {
                             Text(
                                 text = bodyText,
                                 fontSize = fontSize.sp,
@@ -315,7 +348,7 @@ fun ReaderScreen(
                 item("summary") {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(18.dp),
+                        shape = RoundedCornerShape(AppShapes.card),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                     ) {
                         Text(
@@ -331,7 +364,8 @@ fun ReaderScreen(
                 item("translate_hint") {
                     Box(modifier = Modifier.fillMaxWidth()) {
                         Text(
-                            text = "Показан текст на языке оригинала. Нажмите «Перевод», чтобы вернуться к русской версии.",
+                            text = "Показан текст на языке оригинала. Нажмите «Перевод», " +
+                                "чтобы вернуться к русской версии.",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
@@ -350,7 +384,7 @@ fun ReaderScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(bottom = 8.dp),
-                                shape = RoundedCornerShape(16.dp),
+                                shape = RoundedCornerShape(AppShapes.card),
                                 colors = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
                                 )
@@ -376,47 +410,37 @@ fun ReaderScreen(
             item("actions") {
                 Column {
                     HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                    Spacer(Modifier.height(6.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(
+                    Spacer(Modifier.height(8.dp))
+                    AppButtonRow {
+                        AppButton(
+                            text = "Обновить перевод",
                             onClick = onRetry,
-                            shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(Icons.Filled.Translate, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("Обновить перевод")
-                        }
-                        Button(
+                            icon = Icons.Filled.Translate,
+                            style = AppButtonStyle.Primary
+                        )
+                        AppButton(
+                            text = "Источник",
                             onClick = {
                                 runCatching {
                                     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(article.link)))
                                 }
                             },
-                            shape = RoundedCornerShape(14.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.secondary
-                            )
-                        ) {
-                            Icon(Icons.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("Источник")
-                        }
-                    }
-                    TextButton(
-                        onClick = {
-                            val send = Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_SUBJECT, article.displayTitle)
-                                putExtra(Intent.EXTRA_TEXT, "${article.displayTitle}\n\n${article.link}")
-                            }
-                            runCatching { context.startActivity(Intent.createChooser(send, "Поделиться")) }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Поделиться")
+                            icon = Icons.Filled.OpenInNew,
+                            style = AppButtonStyle.Tonal
+                        )
+                        AppButton(
+                            text = "Поделиться",
+                            onClick = {
+                                val send = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_SUBJECT, article.displayTitle)
+                                    putExtra(Intent.EXTRA_TEXT, "${article.displayTitle}\n\n${article.link}")
+                                }
+                                runCatching { context.startActivity(Intent.createChooser(send, "Поделиться")) }
+                            },
+                            icon = Icons.Filled.Share,
+                            style = AppButtonStyle.Ghost
+                        )
                     }
                 }
             }

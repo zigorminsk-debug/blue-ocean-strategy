@@ -1,7 +1,6 @@
 package by.blueocean.news.ui
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -12,9 +11,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
@@ -23,16 +24,12 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -46,6 +43,7 @@ import by.blueocean.news.data.Sources
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FeedScreen(
+    window: WindowInfo,
     state: UiState,
     update: UpdateState,
     onRefresh: () -> Unit,
@@ -60,8 +58,9 @@ fun FeedScreen(
     onTranslateAll: () -> Unit,
     onTranslateArticle: (ArticleEntity) -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
+    AppScreen(window = window) {
         ScreenHeader(
+            window = window,
             title = "Blue Ocean IT",
             subtitle = buildString {
                 val translated = state.sync.translatedArticles.coerceAtMost(state.sync.totalArticles)
@@ -72,21 +71,18 @@ fun FeedScreen(
                 }
             }
         ) {
-            IconButton(onClick = onToggleSavedOnly) {
-                Icon(
-                    imageVector = if (state.filters.savedOnly) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
-                    contentDescription = "Избранное",
-                    tint = if (state.filters.savedOnly) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            IconButton(onClick = onRefresh, enabled = !state.sync.syncing) {
-                if (state.sync.syncing) {
-                    CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
-                } else {
-                    Icon(Icons.Filled.Refresh, contentDescription = "Обновить")
-                }
-            }
+            AppIconButton(
+                icon = if (state.filters.savedOnly) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
+                contentDescription = "Избранное",
+                onClick = onToggleSavedOnly,
+                active = state.filters.savedOnly
+            )
+            AppIconButton(
+                icon = Icons.Filled.Refresh,
+                contentDescription = "Обновить",
+                onClick = onRefresh,
+                enabled = !state.sync.syncing
+            )
         }
 
         OutlinedTextField(
@@ -94,23 +90,23 @@ fun FeedScreen(
             onValueChange = onQuery,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = window.edgePadding),
             placeholder = { Text("Поиск по новостям и идеям") },
             leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
             singleLine = true,
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(AppShapes.control)
         )
 
         LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+            contentPadding = PaddingValues(horizontal = window.edgePadding, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(Sources.CATEGORIES) { category ->
-                FilterChip(
-                    selected = state.filters.category == category,
+                AppChip(
+                    text = category,
                     onClick = { onCategory(category) },
-                    label = { Text(category) },
-                    shape = RoundedCornerShape(12.dp)
+                    selected = state.filters.category == category,
+                    compact = true
                 )
             }
         }
@@ -122,15 +118,19 @@ fun FeedScreen(
         PullToRefreshBox(
             isRefreshing = state.sync.syncing,
             onRefresh = onRefresh,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
         ) {
-            LazyColumn(
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(window.columns),
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
+                contentPadding = window.listPadding(bottom = 28.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 if (update.info != null) {
-                    item("update_banner") {
+                    item(key = "update_banner", span = { GridItemSpan(maxLineSpan) }) {
                         UpdateBanner(
                             version = update.info.version,
                             notes = update.info.notes,
@@ -144,13 +144,13 @@ fun FeedScreen(
                 }
 
                 if (update.error != null) {
-                    item("update_error") {
+                    item(key = "update_error", span = { GridItemSpan(maxLineSpan) }) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.errorContainer
                             ),
-                            shape = RoundedCornerShape(16.dp)
+                            shape = RoundedCornerShape(AppShapes.card)
                         ) {
                             Text(
                                 text = update.error,
@@ -163,54 +163,30 @@ fun FeedScreen(
                 }
 
                 if (state.sync.translating || state.sync.translationQueue > 0) {
-                    item("translate_queue") {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer
-                            ),
-                            shape = RoundedCornerShape(16.dp)
-                        ) {
-                            Column(modifier = Modifier.padding(start = 14.dp, end = 8.dp, top = 10.dp, bottom = 8.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = if (state.sync.translating)
-                                            "Перевожу на русский: осталось ${state.sync.translationQueue}"
-                                        else
-                                            "Без перевода: ${state.sync.translationQueue}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    TextButton(onClick = onTranslateAll, enabled = !state.sync.translating) {
-                                        Text(if (state.sync.translating) "Идёт перевод…" else "Перевести всё")
-                                    }
-                                }
-                                if (state.sync.translating) {
-                                    LinearProgressIndicator(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                        trackColor = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.2f)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (state.articles.isEmpty()) {
-                    item("empty") {
-                        EmptyState(
-                            title = "Пока пусто",
-                            text = if (state.total == 0)
-                                "Потяните вниз, чтобы загрузить первые новости из мировых источников. Первый запуск может занять до минуты."
-                            else
-                                "Ничего не найдено по фильтру. Сбросьте поиск или выберите другую категорию."
+                    item(key = "translate_queue", span = { GridItemSpan(maxLineSpan) }) {
+                        TranslateQueueCard(
+                            translating = state.sync.translating,
+                            queue = state.sync.translationQueue,
+                            onTranslateAll = onTranslateAll
                         )
                     }
                 }
 
-                items(items = state.articles, key = { it.id }) { article ->
+                if (state.articles.isEmpty()) {
+                    item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
+                        EmptyState(
+                            title = "Пока пусто",
+                            text = if (state.total == 0) {
+                                "Потяните вниз, чтобы загрузить первые новости из мировых источников. " +
+                                    "Первый запуск может занять до минуты."
+                            } else {
+                                "Ничего не найдено по фильтру. Сбросьте поиск или выберите другую категорию."
+                            }
+                        )
+                    }
+                }
+
+                gridItems(items = state.articles, key = { it.id }) { article ->
                     ArticleCard(
                         article = article,
                         onClick = { onOpen(article) },
@@ -219,9 +195,59 @@ fun FeedScreen(
                             { onTranslateArticle(article) }
                         } else {
                             null
-                        }
+                        },
+                        imageSize = if (window.isExpanded) 96.dp else if (window.isCompact) 84.dp else 92.dp
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TranslateQueueCard(
+    translating: Boolean,
+    queue: Int,
+    onTranslateAll: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        ),
+        shape = RoundedCornerShape(AppShapes.card)
+    ) {
+        Column(
+            modifier = Modifier.padding(start = 14.dp, end = 10.dp, top = 10.dp, bottom = 10.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = if (translating) {
+                        "Перевожу на русский: осталось $queue"
+                    } else {
+                        "Без перевода: $queue"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(Modifier.width(8.dp))
+                AppButton(
+                    text = if (translating) "Идёт перевод" else "Перевести всё",
+                    onClick = onTranslateAll,
+                    style = AppButtonStyle.Tonal,
+                    size = AppButtonSize.Small,
+                    enabled = !translating,
+                    loading = translating
+                )
+            }
+            if (translating) {
+                Spacer(Modifier.height(8.dp))
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    trackColor = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.2f)
+                )
             }
         }
     }
@@ -239,54 +265,66 @@ private fun UpdateBanner(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(AppShapes.card),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primary
+            containerColor = MaterialTheme.colorScheme.primaryContainer
         )
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "Доступно обновление $version",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onPrimary
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("🚀", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "Доступно обновление $version",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
             if (notes.isNotBlank()) {
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(6.dp))
                 Text(
                     text = notes,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(12.dp))
             if (downloading) {
                 LinearProgressIndicator(
                     progress = { progress / 100f },
                     modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    trackColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.25f)
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
                     text = "Скачиваю APK: $progress%",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onPrimary
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             } else {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = onInstall) {
-                        Text("Установить", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
-                    }
-                    TextButton(onClick = onDismiss) {
-                        Text("Позже", color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f))
-                    }
-                    Spacer(Modifier.weight(1f))
-                    TextButton(onClick = onSkip) {
-                        Text("Пропустить", color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.6f))
-                    }
+                AppButtonRow {
+                    AppButton(
+                        text = "Установить",
+                        onClick = onInstall,
+                        size = AppButtonSize.Small,
+                        icon = null
+                    )
+                    AppButton(
+                        text = "Позже",
+                        onClick = onDismiss,
+                        style = AppButtonStyle.Tonal,
+                        size = AppButtonSize.Small
+                    )
+                    AppButton(
+                        text = "Пропустить",
+                        onClick = onSkip,
+                        style = AppButtonStyle.Ghost,
+                        size = AppButtonSize.Small
+                    )
                 }
             }
         }

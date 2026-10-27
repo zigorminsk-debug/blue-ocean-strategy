@@ -19,10 +19,7 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -34,25 +31,32 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import by.blueocean.news.data.ArticleEntity
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 
+/**
+ * Карточка новости. Размеры подстраиваются под экран: на планшете картинка крупнее,
+ * в узкой колонке — компактнее.
+ */
 @Composable
 fun ArticleCard(
     article: ArticleEntity,
     onClick: () -> Unit,
     onToggleSave: () -> Unit,
     modifier: Modifier = Modifier,
-    onTranslate: (() -> Unit)? = null
+    onTranslate: (() -> Unit)? = null,
+    imageSize: Dp = 84.dp,
+    titleLines: Int = 3
 ) {
     Card(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(AppShapes.card),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
@@ -72,17 +76,16 @@ fun ArticleCard(
                         text = "${article.region} · ${Format.ago(article.publishedAt)}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
-                IconButton(onClick = onToggleSave, modifier = Modifier.size(36.dp)) {
-                    Icon(
-                        imageVector = if (article.isSaved) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
-                        contentDescription = "Сохранить",
-                        tint = if (article.isSaved) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                AppIconButton(
+                    icon = if (article.isSaved) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
+                    contentDescription = if (article.isSaved) "Убрать из избранного" else "Сохранить",
+                    onClick = onToggleSave,
+                    active = article.isSaved
+                )
             }
 
             Spacer(Modifier.height(10.dp))
@@ -93,7 +96,7 @@ fun ArticleCard(
                         text = article.displayTitle,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
-                        maxLines = 3,
+                        maxLines = titleLines,
                         overflow = TextOverflow.Ellipsis
                     )
                     if (article.displaySummary.isNotBlank()) {
@@ -117,7 +120,7 @@ fun ArticleCard(
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
-                            .size(84.dp)
+                            .size(imageSize)
                             .clip(RoundedCornerShape(14.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant)
                     )
@@ -127,11 +130,19 @@ fun ArticleCard(
             Spacer(Modifier.height(10.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Tag(article.category, MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer)
+                AppTag(
+                    text = article.category,
+                    container = MaterialTheme.colorScheme.primaryContainer,
+                    content = MaterialTheme.colorScheme.onPrimaryContainer
+                )
                 val tags = article.moneyTags.split(",").map { it.trim() }.filter { it.isNotBlank() }
                 if (tags.isNotEmpty()) {
                     Spacer(Modifier.width(6.dp))
-                    Tag(tags.first(), MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
+                    AppTag(
+                        text = tags.first(),
+                        container = MaterialTheme.colorScheme.secondaryContainer,
+                        content = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
                 }
                 Spacer(Modifier.weight(1f))
                 if (article.score >= 10) {
@@ -156,19 +167,13 @@ fun ArticleCard(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                     )
-                    Spacer(Modifier.width(6.dp))
-                    Surface(
-                        color = MaterialTheme.colorScheme.secondaryContainer,
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.clickable(onClick = onTranslate)
-                    ) {
-                        Text(
-                            text = "Перевести",
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                    }
+                    Spacer(Modifier.width(8.dp))
+                    AppButton(
+                        text = "Перевести",
+                        onClick = onTranslate,
+                        style = AppButtonStyle.Tonal,
+                        size = AppButtonSize.Small
+                    )
                 }
             }
         }
@@ -176,11 +181,11 @@ fun ArticleCard(
 }
 
 @Composable
-fun SourceDot(name: String) {
+fun SourceDot(name: String, size: Dp = 36.dp) {
     val letter = name.trim().firstOrNull()?.uppercase() ?: "•"
     Box(
         modifier = Modifier
-            .size(36.dp)
+            .size(size)
             .clip(CircleShape)
             .background(
                 Brush.linearGradient(
@@ -196,47 +201,18 @@ fun SourceDot(name: String) {
             text = letter,
             color = Color.White,
             fontWeight = FontWeight.Bold,
-            fontSize = 15.sp
-        )
-    }
-}
-
-@Composable
-fun Tag(text: String, background: Color, foreground: Color) {
-    Surface(
-        color = background,
-        shape = RoundedCornerShape(8.dp)
-    ) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-            style = MaterialTheme.typography.labelSmall,
-            color = foreground,
-            maxLines = 1
+            fontSize = (size.value * 0.42f).sp
         )
     }
 }
 
 @Composable
 fun ScoreBadge(score: Int) {
-    Surface(
-        color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f),
-        shape = RoundedCornerShape(8.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("💰", fontSize = 11.sp)
-            Spacer(Modifier.width(4.dp))
-            Text(
-                text = "$score",
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.tertiary
-            )
-        }
-    }
+    AppTag(
+        text = "💰 $score",
+        container = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f),
+        content = MaterialTheme.colorScheme.tertiary
+    )
 }
 
 @Composable
@@ -283,32 +259,48 @@ fun EmptyState(title: String, text: String, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * Заголовок экрана: на планшете отступы шире, в альбомной ориентации телефона — компактнее,
+ * чтобы контент занимал больше места по вертикали.
+ */
 @Composable
 fun ScreenHeader(
+    window: WindowInfo,
     title: String,
     subtitle: String,
     actions: @Composable () -> Unit = {}
 ) {
+    val compact = window.isShort || (window.isLandscape && window.isCompact)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 20.dp, end = 8.dp, top = 14.dp, bottom = 8.dp),
+            .padding(
+                start = window.edgePadding,
+                end = window.edgePadding - 8.dp,
+                top = if (compact) 6.dp else 14.dp,
+                bottom = if (compact) 4.dp else 8.dp
+            ),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
+                style = if (compact) MaterialTheme.typography.titleLarge
+                else MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
+                maxLines = if (compact) 1 else 2,
                 overflow = TextOverflow.Ellipsis
             )
         }
-        actions()
+        Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+            actions()
+        }
     }
 }

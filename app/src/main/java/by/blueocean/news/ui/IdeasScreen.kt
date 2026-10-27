@@ -2,16 +2,14 @@ package by.blueocean.news.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -31,6 +29,7 @@ import by.blueocean.news.data.Trends
 
 @Composable
 fun IdeasScreen(
+    window: WindowInfo,
     articles: List<ArticleEntity>,
     onOpen: (ArticleEntity) -> Unit,
     onToggleSave: (ArticleEntity) -> Unit,
@@ -40,117 +39,120 @@ fun IdeasScreen(
     val opportunities = remember(articles) { Trends.opportunities(articles, minScore = 8, limit = 25) }
     var expanded by remember { mutableStateOf<String?>(null) }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        item("header") {
-            ScreenHeader(
-                title = "Идеи и деньги",
-                subtitle = "Направления, где рождается прибыль, и новости с денежными сигналами"
-            )
-        }
+    AppScreen(window = window) {
+        ScreenHeader(
+            window = window,
+            title = "Идеи и деньги",
+            subtitle = "Направления, где рождается прибыль, и новости с денежными сигналами"
+        )
 
-        item("how") {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Как читать этот раздел",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(window.columns),
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            contentPadding = window.listPadding(bottom = 28.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            item(key = "how", span = { GridItemSpan(maxLineSpan) }) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(AppShapes.card),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
                     )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        text = "💰 — оценка коммерческого потенциала новости: раунды, оценка, IPO, M&A, " +
-                            "выручка, гранты, патенты, дефицит и новые рынки. Чем выше число, тем ближе " +
-                            "новость к деньгам.\n\nБлок «Денежные сигналы» — свежие события, из которых " +
-                            "можно сделать бизнес. Блок «Направления» — 18 перспективных ниш с моделью " +
-                            "заработка и точкой входа.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "Как читать этот раздел",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = "💰 — оценка коммерческого потенциала новости: раунды, оценка, IPO, M&A, " +
+                                "выручка, гранты, патенты, дефицит и новые рынки. Чем выше число, тем ближе " +
+                                "новость к деньгам.\n\nБлок «Денежные сигналы» — свежие события, из которых " +
+                                "можно сделать бизнес. Блок «Направления» — 18 перспективных ниш с моделью " +
+                                "заработка и точкой входа.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
                 }
             }
-        }
 
-        item("opp_title") {
-            SectionTitle(
-                "Денежные сигналы",
-                if (opportunities.isEmpty()) "Пока нет материалов с высоким потенциалом"
-                else "${opportunities.size} материалов с высоким потенциалом"
-            )
-        }
-
-        if (opportunities.isEmpty()) {
-            item("opp_empty") {
-                EmptyState(
-                    title = "Копим сигналы",
-                    text = "Обновите ленту — потенциал считается автоматически по ключевым словам о деньгах."
-                )
-            }
-        }
-
-        items(items = opportunities, key = { "opp_${it.id}" }) { article ->
-            ArticleCard(
-                article = article,
-                onClick = { onOpen(article) },
-                onToggleSave = { onToggleSave(article) },
-                onTranslate = if (!article.hasTranslation && article.lang != "ru") {
-                    { onTranslate(article) }
-                } else {
-                    null
-                }
-            )
-        }
-
-        item("dir_title") {
-            Column {
-                Spacer(Modifier.height(8.dp))
+            item(key = "opp_title", span = { GridItemSpan(maxLineSpan) }) {
                 SectionTitle(
-                    "Направления развития",
-                    "Сопоставление с новостями за 21 день · ${Directions.ALL.size} ниш"
+                    "Денежные сигналы",
+                    if (opportunities.isEmpty()) "Пока нет материалов с высоким потенциалом"
+                    else "${opportunities.size} материалов с высоким потенциалом"
                 )
             }
-        }
 
-        if (stats.isEmpty()) {
-            item("dir_empty") {
-                Text(
-                    text = "После загрузки новостей здесь появятся направления, которые чаще всего " +
-                        "встречаются в мировой повестке.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+            if (opportunities.isEmpty()) {
+                item(key = "opp_empty", span = { GridItemSpan(maxLineSpan) }) {
+                    EmptyState(
+                        title = "Копим сигналы",
+                        text = "Обновите ленту — потенциал считается автоматически по ключевым словам о деньгах."
+                    )
+                }
+            } else {
+                items(items = opportunities, key = { "opp_${it.id}" }) { article ->
+                    ArticleCard(
+                        article = article,
+                        onClick = { onOpen(article) },
+                        onToggleSave = { onToggleSave(article) },
+                        onTranslate = if (!article.hasTranslation && article.lang != "ru") {
+                            { onTranslate(article) }
+                        } else {
+                            null
+                        }
+                    )
+                }
+            }
+
+            item(key = "dir_title", span = { GridItemSpan(maxLineSpan) }) {
+                Column {
+                    Spacer(Modifier.height(8.dp))
+                    SectionTitle(
+                        "Направления развития",
+                        "Сопоставление с новостями за 21 день · ${Directions.ALL.size} ниш"
+                    )
+                }
+            }
+
+            if (stats.isEmpty()) {
+                item(key = "dir_empty", span = { GridItemSpan(maxLineSpan) }) {
+                    Text(
+                        text = "После загрузки новостей здесь появятся направления, которые чаще всего " +
+                            "встречаются в мировой повестке.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            items(items = stats, key = { "dir_${it.direction.id}" }, span = { GridItemSpan(maxLineSpan) }) { stat ->
+                DirectionCard(
+                    stat = stat,
+                    expanded = expanded == stat.direction.id,
+                    onExpand = {
+                        expanded = if (expanded == stat.direction.id) null else stat.direction.id
+                    },
+                    onOpenLatest = onOpen
                 )
             }
-        }
 
-        items(items = stats, key = { "dir_${it.direction.id}" }) { stat ->
-            DirectionCard(
-                stat = stat,
-                expanded = expanded == stat.direction.id,
-                onExpand = {
-                    expanded = if (expanded == stat.direction.id) null else stat.direction.id
-                },
-                onOpenLatest = onOpen
-            )
-        }
-
-        item("footer") {
-            Row(modifier = Modifier.padding(top = 8.dp)) {
+            item(key = "footer", span = { GridItemSpan(maxLineSpan) }) {
                 Text(
                     text = "Раздел обновляется автоматически вместе с лентой.",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp)
                 )
-                Spacer(Modifier.width(4.dp))
             }
         }
     }

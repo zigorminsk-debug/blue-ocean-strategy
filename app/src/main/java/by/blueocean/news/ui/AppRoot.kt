@@ -2,6 +2,8 @@ package by.blueocean.news.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -12,8 +14,11 @@ import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -24,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import by.blueocean.news.data.ArticleEntity
 
 private data class Tab(val label: String, val icon: ImageVector)
 
@@ -36,6 +42,7 @@ private val tabs = listOf(
 
 @Composable
 fun AppRoot(viewModel: AppViewModel, openUpdatesInitially: Boolean = false) {
+    val window = rememberWindowInfo()
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val update by viewModel.update.collectAsStateWithLifecycle()
     val settings by viewModel.settings.collectAsStateWithLifecycle()
@@ -52,7 +59,7 @@ fun AppRoot(viewModel: AppViewModel, openUpdatesInitially: Boolean = false) {
         }
     }
 
-    val openArticle: (by.blueocean.news.data.ArticleEntity) -> Unit = { article ->
+    val openArticle: (ArticleEntity) -> Unit = { article ->
         detailId = article.id
         viewModel.openArticle(article)
     }
@@ -64,84 +71,112 @@ fun AppRoot(viewModel: AppViewModel, openUpdatesInitially: Boolean = false) {
 
     BackHandler(enabled = detailArticle != null) { closeArticle() }
 
-    Scaffold(
-        bottomBar = {
-            if (detailArticle == null) {
-                NavigationBar {
-                    tabs.forEachIndexed { index, item ->
-                        NavigationBarItem(
-                            selected = tab == index,
-                            onClick = { tab = index },
-                            icon = { Icon(item.icon, contentDescription = item.label) },
-                            label = { Text(item.label) }
+    // На планшетах и в альбомной ориентации телефона навигация уходит в боковую панель,
+    // в портрете на телефоне остаётся нижняя панель.
+    val showRail = detailArticle == null && (window.isExpanded || (window.isLandscape && window.isShort))
+    val showBottomBar = detailArticle == null && !showRail
+
+    Row(modifier = Modifier.fillMaxSize()) {
+        if (showRail) {
+            NavigationRail(modifier = Modifier.fillMaxHeight()) {
+                tabs.forEachIndexed { index, item ->
+                    NavigationRailItem(
+                        selected = tab == index,
+                        onClick = { tab = index },
+                        icon = { Icon(item.icon, contentDescription = item.label) },
+                        label = { Text(item.label) }
+                    )
+                }
+            }
+            VerticalDivider()
+        }
+
+        Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+            Scaffold(
+                bottomBar = {
+                    if (showBottomBar) {
+                        NavigationBar {
+                            tabs.forEachIndexed { index, item ->
+                                NavigationBarItem(
+                                    selected = tab == index,
+                                    onClick = { tab = index },
+                                    icon = { Icon(item.icon, contentDescription = item.label) },
+                                    label = { Text(item.label) }
+                                )
+                            }
+                        }
+                    }
+                }
+            ) { padding ->
+                Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+                    val current = detailArticle
+                    when {
+                        current != null -> ReaderScreen(
+                            window = window,
+                            article = current,
+                            reader = reader,
+                            onBack = closeArticle,
+                            onToggleSave = { viewModel.toggleSaved(current) },
+                            onToggleOriginal = viewModel::toggleReaderOriginal,
+                            onRetry = viewModel::retryReader
+                        )
+                        tab == 0 -> FeedScreen(
+                            window = window,
+                            state = state,
+                            update = update,
+                            onRefresh = viewModel::refresh,
+                            onQuery = viewModel::setQuery,
+                            onCategory = viewModel::setCategory,
+                            onToggleSavedOnly = viewModel::toggleSavedOnly,
+                            onOpen = openArticle,
+                            onToggleSave = viewModel::toggleSaved,
+                            onInstallUpdate = viewModel::downloadAndInstall,
+                            onDismissUpdate = viewModel::dismissUpdateBanner,
+                            onSkipVersion = viewModel::skipVersion,
+                            onTranslateAll = viewModel::translateAll,
+                            onTranslateArticle = viewModel::translateArticle
+                        )
+                        tab == 1 -> TrendsScreen(
+                            window = window,
+                            articles = state.all,
+                            onKeyword = { word ->
+                                viewModel.setCategory("Все")
+                                viewModel.setQuery(word)
+                                tab = 0
+                            },
+                            onOpen = openArticle,
+                            onTranslate = viewModel::translateArticle
+                        )
+                        tab == 2 -> IdeasScreen(
+                            window = window,
+                            articles = state.all,
+                            onOpen = openArticle,
+                            onToggleSave = viewModel::toggleSaved,
+                            onTranslate = viewModel::translateArticle
+                        )
+                        else -> SettingsScreen(
+                            window = window,
+                            settings = settings,
+                            sync = state.sync,
+                            update = update,
+                            versionName = viewModel.versionName,
+                            versionCode = viewModel.versionCode,
+                            sources = viewModel.sources,
+                            onAutoUpdate = viewModel::setAutoUpdate,
+                            onAutoInstall = viewModel::setAutoInstall,
+                            onNotifications = viewModel::setNotifications,
+                            onWifiOnly = viewModel::setWifiOnly,
+                            onInterval = viewModel::setSyncInterval,
+                            onMaxItems = viewModel::setMaxItems,
+                            onSourceToggle = viewModel::setSourceEnabled,
+                            onResetSources = viewModel::resetSources,
+                            onCheckUpdate = { viewModel.checkUpdate(manual = true) },
+                            onInstallUpdate = viewModel::downloadAndInstall,
+                            onTranslateAll = viewModel::translateAll,
+                            onOpenInstallPermission = viewModel::openInstallPermission
                         )
                     }
                 }
-            }
-        }
-    ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            val current = detailArticle
-            when {
-                current != null -> ReaderScreen(
-                    article = current,
-                    reader = reader,
-                    onBack = closeArticle,
-                    onToggleSave = { viewModel.toggleSaved(current) },
-                    onToggleOriginal = viewModel::toggleReaderOriginal,
-                    onRetry = viewModel::retryReader
-                )
-                tab == 0 -> FeedScreen(
-                    state = state,
-                    update = update,
-                    onRefresh = viewModel::refresh,
-                    onQuery = viewModel::setQuery,
-                    onCategory = viewModel::setCategory,
-                    onToggleSavedOnly = viewModel::toggleSavedOnly,
-                    onOpen = openArticle,
-                    onToggleSave = viewModel::toggleSaved,
-                    onInstallUpdate = viewModel::downloadAndInstall,
-                    onDismissUpdate = viewModel::dismissUpdateBanner,
-                    onSkipVersion = viewModel::skipVersion,
-                    onTranslateAll = viewModel::translateAll,
-                    onTranslateArticle = viewModel::translateArticle
-                )
-                tab == 1 -> TrendsScreen(
-                    articles = state.all,
-                    onKeyword = { word ->
-                        viewModel.setCategory("Все")
-                        viewModel.setQuery(word)
-                        tab = 0
-                    },
-                    onOpen = openArticle,
-                    onTranslate = viewModel::translateArticle
-                )
-                tab == 2 -> IdeasScreen(
-                    articles = state.all,
-                    onOpen = openArticle,
-                    onToggleSave = viewModel::toggleSaved,
-                    onTranslate = viewModel::translateArticle
-                )
-                else -> SettingsScreen(
-                    settings = settings,
-                    sync = state.sync,
-                    update = update,
-                    versionName = viewModel.versionName,
-                    versionCode = viewModel.versionCode,
-                    sources = viewModel.sources,
-                    onAutoUpdate = viewModel::setAutoUpdate,
-                    onAutoInstall = viewModel::setAutoInstall,
-                    onNotifications = viewModel::setNotifications,
-                    onWifiOnly = viewModel::setWifiOnly,
-                    onInterval = viewModel::setSyncInterval,
-                    onMaxItems = viewModel::setMaxItems,
-                    onSourceToggle = viewModel::setSourceEnabled,
-                    onResetSources = viewModel::resetSources,
-                    onCheckUpdate = { viewModel.checkUpdate(manual = true) },
-                    onInstallUpdate = viewModel::downloadAndInstall,
-                    onTranslateAll = viewModel::translateAll,
-                    onOpenInstallPermission = viewModel::openInstallPermission
-                )
             }
         }
     }

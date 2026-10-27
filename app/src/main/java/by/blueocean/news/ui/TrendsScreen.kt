@@ -4,18 +4,17 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
@@ -37,91 +36,94 @@ import by.blueocean.news.data.Trends
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TrendsScreen(
+    window: WindowInfo,
     articles: List<ArticleEntity>,
     onKeyword: (String) -> Unit,
     onOpen: (ArticleEntity) -> Unit,
     onTranslate: (ArticleEntity) -> Unit
 ) {
     val words = remember(articles) { Trends.words(articles, days = 7, limit = 48) }
-    val hot = remember(articles) { articles.filter { it.publishedAt > System.currentTimeMillis() - 3 * 86_400_000L } }
+    val hot = remember(articles) {
+        articles.filter { it.publishedAt > System.currentTimeMillis() - 3 * 86_400_000L }
+    }
     val maxCount = words.maxOfOrNull { it.count } ?: 1
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        item("header") {
-            ScreenHeader(
-                title = "Радар трендов",
-                subtitle = "Частота терминов за 7 дней и рост относительно прошлой недели"
-            )
-        }
+    AppScreen(window = window) {
+        ScreenHeader(
+            window = window,
+            title = "Радар трендов",
+            subtitle = "Частота терминов за 7 дней и рост относительно прошлой недели"
+        )
 
-        if (words.isEmpty()) {
-            item("empty") {
-                EmptyState(
-                    title = "Данных пока мало",
-                    text = "Обновите ленту: радар считает тренды по загруженным материалам."
-                )
-            }
-        }
-
-        item("chips") {
-            Column {
-                SectionTitle("Что обсуждают", "Нажмите на термин, чтобы отфильтровать ленту")
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    words.take(28).forEach { word ->
-                        AssistChip(
-                            onClick = { onKeyword(word.word) },
-                            label = {
-                                Text(
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(window.columns),
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            contentPadding = window.listPadding(bottom = 28.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            if (words.isEmpty()) {
+                item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
+                    EmptyState(
+                        title = "Данных пока мало",
+                        text = "Обновите ленту: радар считает тренды по загруженным материалам."
+                    )
+                }
+            } else {
+                item(key = "chips", span = { GridItemSpan(maxLineSpan) }) {
+                    Column {
+                        SectionTitle("Что обсуждают", "Нажмите на термин, чтобы отфильтровать ленту")
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            words.take(28).forEach { word ->
+                                AppChip(
                                     text = "${word.word}  ${word.count}",
-                                    style = MaterialTheme.typography.labelMedium
+                                    onClick = { onKeyword(word.word) },
+                                    compact = true
                                 )
-                            },
-                            shape = RoundedCornerShape(12.dp)
-                        )
+                            }
+                        }
                     }
                 }
-            }
-        }
 
-        item("bars") {
-            Column {
-                Spacer(Modifier.height(6.dp))
-                SectionTitle("Топ по упоминаниям")
-                words.take(12).forEach { word -> TrendBar(word, maxCount) }
-            }
-        }
+                item(key = "bars", span = { GridItemSpan(maxLineSpan) }) {
+                    Column {
+                        Spacer(Modifier.height(6.dp))
+                        SectionTitle("Топ по упоминаниям")
+                        words.take(12).forEach { word -> TrendBar(word, maxCount) }
+                    }
+                }
 
-        item("hot") {
-            Column {
-                SectionTitle("Свежее за 3 дня", "${hot.size} материалов")
-                if (hot.isEmpty()) {
-                    Text(
-                        text = "Пока нет материалов за последние 3 дня — обновите ленту.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                item(key = "hot_title", span = { GridItemSpan(maxLineSpan) }) {
+                    Column {
+                        SectionTitle("Свежее за 3 дня", "${hot.size} материалов")
+                        if (hot.isEmpty()) {
+                            Text(
+                                text = "Пока нет материалов за последние 3 дня — обновите ленту.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                items(items = hot.take(20), key = { "hot_${it.id}" }) { article ->
+                    ArticleCard(
+                        article = article,
+                        onClick = { onOpen(article) },
+                        onToggleSave = { },
+                        onTranslate = if (!article.hasTranslation && article.lang != "ru") {
+                            { onTranslate(article) }
+                        } else {
+                            null
+                        }
                     )
                 }
             }
-        }
-
-        items(items = hot.take(20), key = { "hot_${it.id}" }) { article ->
-            ArticleCard(
-                article = article,
-                onClick = { onOpen(article) },
-                onToggleSave = { },
-                onTranslate = if (!article.hasTranslation && article.lang != "ru") {
-                    { onTranslate(article) }
-                } else {
-                    null
-                }
-            )
         }
     }
 }
@@ -172,7 +174,7 @@ fun DirectionCard(
     val direction: Direction = stat.direction
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(AppShapes.card),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -191,10 +193,12 @@ fun DirectionCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                AssistChip(
+                Spacer(Modifier.width(8.dp))
+                AppChip(
+                    text = if (expanded) "Свернуть" else "Разбор",
                     onClick = onExpand,
-                    label = { Text(if (expanded) "Свернуть" else "Разбор") },
-                    shape = RoundedCornerShape(10.dp)
+                    selected = expanded,
+                    compact = true
                 )
             }
 
@@ -212,17 +216,14 @@ fun DirectionCard(
                 Text("Риски", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                 Text(direction.risk, style = MaterialTheme.typography.bodySmall)
                 stat.latest?.let { article ->
-                    Spacer(Modifier.height(10.dp))
-                    AssistChip(
+                    Spacer(Modifier.height(12.dp))
+                    AppButton(
+                        text = article.displayTitle,
                         onClick = { onOpenLatest(article) },
-                        label = {
-                            Text(
-                                text = "Свежая новость: ${article.displayTitle}",
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        },
-                        shape = RoundedCornerShape(10.dp)
+                        style = AppButtonStyle.Tonal,
+                        size = AppButtonSize.Small,
+                        fillWidth = true,
+                        compactText = true
                     )
                 }
             }
