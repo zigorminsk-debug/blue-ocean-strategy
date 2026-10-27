@@ -169,13 +169,14 @@ jobs:
             Приложение само проверяет этот релиз (GitHub Releases API), скачивает APK,
             сверяет подпись с установленной и запускает установщик.
 
-      - name: Драфт-сборка для ветки
+      - name: Сборка для ветки (prerelease, можно ставить сразу)
         if: steps.build.outcome == 'success' && github.ref != 'refs/heads/main' && github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: dev-build
-          name: Dev build (черновик)
-          draft: true
+          name: Dev build — актуальная сборка ветки
+          prerelease: true
+          make_latest: false
           files: ${{ steps.ver.outputs.apk }}
           body: |
             Тестовая сборка ветки `${{ github.ref_name }}` — ${{ steps.ver.outputs.name }}.
