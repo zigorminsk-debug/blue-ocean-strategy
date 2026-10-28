@@ -130,9 +130,9 @@ Smoke-тест заодно проверяет автообновление ка
 
 ## Как установить
 
-1. Откройте [Releases](https://github.com/zigorminsk-debug/blue-ocean-strategy/releases) —
-   стабильный релиз или [dev-build](https://github.com/zigorminsk-debug/blue-ocean-strategy/releases/tag/dev-build)
-   с актуальным APK `BlueOceanIT-x.y.z.apk`.
+1. Откройте [последний релиз](https://github.com/zigorminsk-debug/blue-ocean-strategy/releases/latest) —
+   там актуальный APK `BlueOceanIT-x.y.z.apk` (в [dev-build](https://github.com/zigorminsk-debug/blue-ocean-strategy/releases/tag/dev-build)
+   лежат те же сборки, три последние).
 2. Скачайте APK на телефон.
 3. Разрешите установку из этого источника (Android спросит сам).
 4. Откройте приложение — лента появится через 20–40 секунд, перевод догоняет в фоне (виден прогресс «Переведено X из Y»).
