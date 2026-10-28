@@ -83,7 +83,7 @@ class UpdateManager(private val context: Context) {
         UpdateCheck.Available(
             UpdateInfo(
                 version = best.version,
-                notes = best.release.optString("body").take(1500),
+                notes = plainNotes(best.release.optString("body")),
                 apkUrl = best.apkUrl,
                 apkSize = best.apkSize,
                 publishedAt = best.release.optString("published_at")
@@ -256,6 +256,36 @@ class UpdateManager(private val context: Context) {
         fun releasesPage(): String = "https://github.com/$OWNER/$REPO/releases"
 
         fun downloadPage(): String = releasesPage()
+
+        /**
+         * Описание релиза без markdown: в баннере и настройках нужен обычный текст,
+         * а не `## заголовок` и `**жирный**`.
+         */
+        fun plainNotes(body: String, limit: Int = 400): String {
+            val lines = body.lineSequence()
+                .map { line -> line.trim() }
+                .filter { line -> line.isNotEmpty() }
+                .filterNot { line -> line.startsWith("- ") && line.length < 3 }
+                .map { line ->
+                    line.removePrefix("### ").removePrefix("## ").removePrefix("# ")
+                        .replace("**", "")
+                        .replace("`", "")
+                        .replace(Regex("""\[([^]]+)]\([^)]*\)"""), "$1")
+                        .removePrefix("- ")
+                        .trim()
+                }
+                .filter { it.isNotEmpty() }
+                .toList()
+            // Служебные строки CI (SHA-256, сертификат, коммит) в баннере не нужны
+            val useful = lines.filterNot { line ->
+                line.startsWith("SHA-256") || line.startsWith("Сертификат") ||
+                    line.startsWith("Коммит") || line.startsWith("Размер") ||
+                    line.startsWith("APK подписан") || line.startsWith("Приложение само") ||
+                    line.startsWith("данные и настройки сохраняются") ||
+                    line.startsWith("Тестовая сборка ветки")
+            }
+            return useful.joinToString("\n").take(limit).trim()
+        }
 
         /** Версия из тега релиза: `v1.0.26` → `1.0.26`; `dev-build` → null. */
         fun versionOfTag(tag: String): String? {

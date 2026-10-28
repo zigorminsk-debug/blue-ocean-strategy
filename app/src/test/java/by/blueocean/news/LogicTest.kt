@@ -403,6 +403,24 @@ class UpdateVersionTest {
     }
 
     @Test
+    fun stripsMarkdownFromReleaseNotes() {
+        val body = """
+            ## Blue Ocean IT 1.0.33
+
+            APK подписан **постоянным ключом** — устанавливается поверх предыдущей версии.
+            - SHA-256: `abc`
+            - Размер: 9 МБ
+
+            Что нового: кнопки приведены к единому виду.
+        """.trimIndent()
+        val notes = UpdateManager.plainNotes(body)
+        assertFalse(notes.contains("##"))
+        assertFalse(notes.contains("**"))
+        assertFalse(notes.contains("SHA-256"))
+        assertTrue(notes.contains("кнопки приведены к единому виду"))
+    }
+
+    @Test
     fun ignoresReleaseWithoutApk() {
         val releases = JSONArray().put(release("v1.0.30", assets = listOf("notes.txt")))
         assertEquals(null, UpdateManager.pickNewestApk(releases))
