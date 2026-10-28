@@ -449,12 +449,14 @@ jobs:
           adb shell wm density reset > /dev/null 2>&1
 
           # ── Регрессия автообновления ───────────────────────────────────────────
-          # Ставим СТАРЫЙ APK из релиза и просим приложение проверить обновления.
+          # Ставим ПРЕДЫДУЩИЙ APK из релиза и просим приложение проверить обновления.
           # Раньше версия бралась из тега (`dev-build`), а «свежим» считался первый
-          # файл в списке (1.0.18) — приложение отвечало «у вас последняя версия».
-          echo "--- проверка автообновления на старой версии ---"
-          gh release view dev-build --repo "${{ github.repository }}"             --json assets -q '.assets[].name' > assets.txt 2>/dev/null || true
-          OLD_NAME="$(python3 - <<'PY3'
+          # файл в списке — приложение отвечало «у вас последняя версия», хотя релиз новее.
+          echo "--- проверка автообновления на предыдущей сборке ---"
+          gh release view dev-build --repo "${{ github.repository }}" \
+            --json assets -q '.assets[].name' > assets.txt 2>/dev/null || true
+          # Предыдущая сборка (в релизе хранятся три последних APK) и ожидаемая свежая версия
+          read -r OLD_NAME NEWEST_VERSION <<<"$(python3 - <<'PY3'
           import re
           try:
               names = [l.strip() for l in open('assets.txt') if l.strip().endswith('.apk')]
@@ -463,10 +465,14 @@ jobs:
           def key(n):
               m = re.search(r'(\d+(?:\.\d+)+)', n)
               return [int(x) for x in m.group(1).split('.')] if m else [0]
-          print(min(names, key=key) if names else "")
+          names.sort(key=key)
+          old = names[-2] if len(names) > 1 else ""
+          newest = names[-1] if names else ""
+          m = re.search(r'(\d+(?:\.\d+)+)', newest)
+          print(old, m.group(1) if m else "")
           PY3
           )"
-          echo "старая версия: $OLD_NAME"
+          echo "ставлю для проверки: $OLD_NAME (ожидаю обновление до $NEWEST_VERSION)"
           UPDATE_RESULT="SKIP"
           if [ -n "$OLD_NAME" ]; then
             gh release download dev-build --repo "${{ github.repository }}" \
@@ -550,10 +556,14 @@ jobs:
               adb pull /sdcard/ui.xml ui.xml > /dev/null 2>&1
               UPDATE_RESULT="FAIL"
               if grep -q "update: installed=" logcat-update.txt; then UPDATE_RESULT="LOGGED"; fi
-              if grep -q "Доступна версия" ui.xml 2>/dev/null; then UPDATE_RESULT="OK"; fi
-              echo "обновление на старой сборке: $UPDATE_RESULT"
+              if [ -n "$NEWEST_VERSION" ] && grep -q "Доступна версия $NEWEST_VERSION" ui.xml 2>/dev/null; then
+                UPDATE_RESULT="OK"
+              elif grep -q "У вас последняя версия" ui.xml 2>/dev/null; then
+                UPDATE_RESULT="WRONG: newest version not detected"
+              fi
+              echo "обновление на предыдущей сборке: $UPDATE_RESULT"
               grep -E "update: installed=" logcat-update.txt | tail -n 3
-              grep -o "Доступна версия [0-9.]*" ui.xml 2>/dev/null | head -n 2
+              grep -o "Доступна версия [0-9.]*\|У вас последняя версия ([0-9.]*)" ui.xml 2>/dev/null | head -n 2
             fi
           fi
 
