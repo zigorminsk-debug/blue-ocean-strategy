@@ -291,6 +291,8 @@ class UpdateManager(private val context: Context) {
                     val name = asset.optString("name")
                     val url = asset.optString("browser_download_url")
                     if (url.isBlank()) continue
+                    // версия из имени файла; если в имени её нет — из тега (только для .apk)
+                    if (!name.endsWith(".apk", ignoreCase = true)) continue
                     val version = versionOfAsset(name) ?: tagVersion ?: continue
                     val size = asset.optLong("size")
                     if (best == null || compareVersions(version, best.version) > 0) {
