@@ -19,12 +19,33 @@ import java.io.File
 import java.security.MessageDigest
 
 /**
+ * Результат проверки обновлений.
+ *
+ * «Обновлений нет» и «не смог проверить» — разные вещи: если показать второе как первое,
+ * пользователь видит «у вас последняя версия», хотя на самом деле свежий релиз есть.
+ */
+sealed interface UpdateCheck {
+    data class Available(val info: UpdateManager.UpdateInfo) : UpdateCheck
+    data object UpToDate : UpdateCheck
+    data class Failed(val reason: String) : UpdateCheck
+}
+
+/** Найденный APK: версия, ссылка и релиз, в котором он лежит (для описания изменений). */
+data class ReleaseApk(
+    val version: String,
+    val apkUrl: String,
+    val apkSize: Long,
+    val release: JSONObject
+)
+
+/**
  * Автообновление через GitHub Releases.
  *
  * Схема: CI собирает APK тем же постоянным ключом и публикует релиз.
- * Приложение раз в несколько часов спрашивает последний релиз, скачивает APK,
- * проверяет, что подпись совпадает с установленной (защита от подмены),
- * и запускает системный установщик — версия встаёт «поверх» без удаления данных.
+ * Приложение раз в несколько часов читает список релизов, берёт самый свежий APK
+ * ([pickNewestApk]), скачивает его, проверяет, что подпись совпадает с установленной
+ * (защита от подмены), и запускает системный установщик — версия встаёт «поверх»
+ * без удаления данных.
  */
 class UpdateManager(private val context: Context) {
 
@@ -34,21 +55,6 @@ class UpdateManager(private val context: Context) {
         val apkUrl: String,
         val apkSize: Long,
         val publishedAt: String
-    )
-
-    /** Результат проверки: важно отличать «обновлений нет» от «не смог проверить». */
-    sealed interface UpdateCheck {
-        data class Available(val info: UpdateInfo) : UpdateCheck
-        data object UpToDate : UpdateCheck
-        data class Failed(val reason: String) : UpdateCheck
-    }
-
-    /** Найденный релиз: версия, ссылка на APK и сам JSON релиза (для описания). */
-    data class Candidate(
-        val version: String,
-        val apkUrl: String,
-        val apkSize: Long,
-        val release: JSONObject
     )
 
     suspend fun check(): UpdateCheck = withContext(Dispatchers.IO) {
@@ -272,8 +278,8 @@ class UpdateManager(private val context: Context) {
          * из тега релиза. Черновики игнорируются, старые APK в общем релизе не мешают:
          * выбирается максимальная версия, а не первый файл в списке.
          */
-        fun pickNewestApk(releases: JSONArray): Candidate? {
-            var best: Candidate? = null
+        fun pickNewestApk(releases: JSONArray): ReleaseApk? {
+            var best: ReleaseApk? = null
             for (i in 0 until releases.length()) {
                 val release = releases.optJSONObject(i) ?: continue
                 if (release.optBoolean("draft")) continue
@@ -288,7 +294,7 @@ class UpdateManager(private val context: Context) {
                     val version = versionOfAsset(name) ?: tagVersion ?: continue
                     val size = asset.optLong("size")
                     if (best == null || compareVersions(version, best.version) > 0) {
-                        best = Candidate(version, url, size, release)
+                        best = ReleaseApk(version, url, size, release)
                     }
                 }
             }
