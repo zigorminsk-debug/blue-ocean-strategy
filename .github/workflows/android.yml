@@ -185,6 +185,33 @@ jobs:
             - Сертификат подписи: `${{ steps.apk.outputs.signer }}`
             - Размер: ${{ steps.apk.outputs.size }}
 
+      # Оставляем в общем релизе только три последних APK: старые версии никому не нужны,
+      # а раздутый список файлов раньше и приводил к тому, что «свежим» считался 1.0.18.
+      - name: Почистить старые APK в dev-build
+        if: steps.build.outcome == 'success' && github.ref != 'refs/heads/main' && github.event_name == 'push'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          REL="$(gh api repos/${{ github.repository }}/releases/tags/dev-build)" || exit 0
+          ID="$(echo "$REL" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')"
+          gh api "repos/${{ github.repository }}/releases/$ID/assets?per_page=100" > assets.json
+          python3 - > old-assets.txt <<'PY'
+          import json, re
+          data = json.load(open('assets.json'))
+          def key(a):
+              m = re.search(r'(\d+(?:\.\d+)+)', a['name'])
+              return [int(x) for x in m.group(1).split('.')] if m else [0]
+          apks = sorted([a for a in data if a['name'].lower().endswith('.apk')], key=key)
+          for a in apks[:-3]:
+              print(a['id'], a['name'])
+          PY
+          while read -r AID NAME; do
+            [ -z "$AID" ] && continue
+            echo "удаляю $NAME"
+            gh api -X DELETE "repos/${{ github.repository }}/releases/assets/$AID" || true
+          done < old-assets.txt
+
   smoke:
     name: Smoke-тест на эмуляторе
     needs: build
@@ -213,6 +240,8 @@ jobs:
         id: emu
         continue-on-error: true
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set +e
           exec > >(tee -a emulator.log) 2>&1
@@ -419,8 +448,118 @@ jobs:
           adb shell wm size reset > /dev/null 2>&1
           adb shell wm density reset > /dev/null 2>&1
 
+          # ── Регрессия автообновления ───────────────────────────────────────────
+          # Ставим СТАРЫЙ APK из релиза и просим приложение проверить обновления.
+          # Раньше версия бралась из тега (`dev-build`), а «свежим» считался первый
+          # файл в списке (1.0.18) — приложение отвечало «у вас последняя версия».
+          echo "--- проверка автообновления на старой версии ---"
+          gh release view dev-build --repo "${{ github.repository }}"             --json assets -q '.assets[].name' > assets.txt 2>/dev/null || true
+          OLD_NAME="$(python3 - <<'PY3'
+          import re
+          try:
+              names = [l.strip() for l in open('assets.txt') if l.strip().endswith('.apk')]
+          except Exception:
+              names = []
+          def key(n):
+              m = re.search(r'(\d+(?:\.\d+)+)', n)
+              return [int(x) for x in m.group(1).split('.')] if m else [0]
+          print(min(names, key=key) if names else "")
+          PY3
+          )"
+          echo "старая версия: $OLD_NAME"
+          UPDATE_RESULT="SKIP"
+          if [ -n "$OLD_NAME" ]; then
+            gh release download dev-build --repo "${{ github.repository }}" \
+              --pattern "$OLD_NAME" --dir old-apk --clobber 2>&1 | tail -n 2
+            OLD_APK="old-apk/$OLD_NAME"
+            if [ -f "$OLD_APK" ]; then
+              adb install -r -d "$OLD_APK" 2>&1 | tail -n 2
+              adb shell am force-stop by.blueocean.news
+              adb logcat -c
+              adb shell am start -n by.blueocean.news/.MainActivity > /dev/null 2>&1
+              sleep 12
+              # Настройки → «Проверить обновления»
+              adb shell uiautomator dump /sdcard/ui.xml > /dev/null 2>&1
+              adb pull /sdcard/ui.xml ui.xml > /dev/null 2>&1
+              COORDS="$(python3 - "Настройки" <<'PY4'
+          import re, sys
+          target = sys.argv[1]
+          try:
+              xml = open('ui.xml', encoding='utf-8').read()
+          except Exception:
+              print("")
+              raise SystemExit
+          for node in re.findall(r'<node[^>]*>', xml):
+              text = re.search(r'text="([^"]*)"', node)
+              bounds = re.search(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', node)
+              if text and bounds and text.group(1) == target:
+                  x1, y1, x2, y2 = map(int, bounds.groups())
+                  print((x1 + x2) // 2, (y1 + y2) // 2)
+                  break
+          PY4
+          )"
+              if [ -n "$COORDS" ]; then adb shell input tap $COORDS; sleep 6; fi
+              adb shell uiautomator dump /sdcard/ui.xml > /dev/null 2>&1
+              adb pull /sdcard/ui.xml ui.xml > /dev/null 2>&1
+              CHECK="$(python3 - "Проверить обновления" <<'PY5'
+          import re, sys
+          target = sys.argv[1]
+          try:
+              xml = open('ui.xml', encoding='utf-8').read()
+          except Exception:
+              print("")
+              raise SystemExit
+          for node in re.findall(r'<node[^>]*>', xml):
+              text = re.search(r'text="([^"]*)"', node)
+              bounds = re.search(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', node)
+              if text and bounds and target in text.group(1):
+                  x1, y1, x2, y2 = map(int, bounds.groups())
+                  print((x1 + x2) // 2, (y1 + y2) // 2)
+                  break
+          PY5
+          )"
+              echo "кнопка проверки: '$CHECK'"
+              if [ -z "$CHECK" ]; then
+                adb shell input swipe 540 1600 540 600 300 > /dev/null 2>&1
+                sleep 2
+                adb shell uiautomator dump /sdcard/ui.xml > /dev/null 2>&1
+                adb pull /sdcard/ui.xml ui.xml > /dev/null 2>&1
+                CHECK="$(python3 - "Проверить обновления" <<'PY5'
+          import re, sys
+          target = sys.argv[1]
+          try:
+              xml = open('ui.xml', encoding='utf-8').read()
+          except Exception:
+              print("")
+              raise SystemExit
+          for node in re.findall(r'<node[^>]*>', xml):
+              text = re.search(r'text="([^"]*)"', node)
+              bounds = re.search(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', node)
+              if text and bounds and target in text.group(1):
+                  x1, y1, x2, y2 = map(int, bounds.groups())
+                  print((x1 + x2) // 2, (y1 + y2) // 2)
+                  break
+          PY5
+          )"
+              fi
+              if [ -n "$CHECK" ]; then adb shell input tap $CHECK; fi
+              sleep 20
+              adb logcat -d > logcat-update.txt
+              adb exec-out screencap -p > screen-update.png
+              adb shell uiautomator dump /sdcard/ui.xml > /dev/null 2>&1
+              adb pull /sdcard/ui.xml ui.xml > /dev/null 2>&1
+              UPDATE_RESULT="FAIL"
+              if grep -q "update: installed=" logcat-update.txt; then UPDATE_RESULT="LOGGED"; fi
+              if grep -q "Доступна версия" ui.xml 2>/dev/null; then UPDATE_RESULT="OK"; fi
+              echo "обновление на старой сборке: $UPDATE_RESULT"
+              grep -E "update: installed=" logcat-update.txt | tail -n 3
+              grep -o "Доступна версия [0-9.]*" ui.xml 2>/dev/null | head -n 2
+            fi
+          fi
+
           {
             echo "--- вкладки ---"
+            echo "UPDATE_RESULT: $UPDATE_RESULT"
             ls -la screen-*.png
             if grep -q "FATAL EXCEPTION" logcat-reader.txt; then echo "TABS_RESULT: CRASH"; else echo "TABS_RESULT: OK"; fi
             grep -E "BlueOcean" logcat-reader.txt | tail -n 5
@@ -438,6 +577,8 @@ jobs:
             screen-reader.png
             screen-landscape.png
             screen-tablet.png
+            screen-update.png
+            logcat-update.txt
             reader-result.txt
             screen-*.png
             tabs-result.txt
@@ -463,6 +604,7 @@ jobs:
           [ -f "screen-Настройки.png" ] && cp "screen-Настройки.png" docs/screenshot-settings.png
           [ -f screen-landscape.png ] && cp screen-landscape.png docs/screenshot-landscape.png
           [ -f screen-tablet.png ] && cp screen-tablet.png docs/screenshot-tablet.png
+          [ -f screen-update.png ] && cp screen-update.png docs/screenshot-update.png
           if [ -f tabs-result.txt ]; then cp tabs-result.txt docs/tabs-result.txt; fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
