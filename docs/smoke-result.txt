@@ -1,18 +1,30 @@
-PID: 3245
+PID: 3384
 RESULT: APP_ALIVE
-10-28 04:36:08.998   520   548 I ActivityManager: Start proc 3245:by.blueocean.news/u0a192 for next-top-activity {by.blueocean.news/by.blueocean.news.MainActivity}
-10-28 04:36:14.314   520   537 I ActivityTaskManager: Displayed by.blueocean.news/.MainActivity for user 0: +4s690ms
+10-28 04:52:09.517   519   549 I ActivityManager: Start proc 3384:by.blueocean.news/u0a192 for next-top-activity {by.blueocean.news/by.blueocean.news.MainActivity}
+10-28 04:52:13.214   519   537 I ActivityTaskManager: Displayed by.blueocean.news/.MainActivity for user 0: +4s704ms
 --- логи приложения ---
-10-28 04:36:12.953  3245  3426 I BlueOcean: update: installed=1.0.29 latest=1.0.29 url=https://github.com/zigorminsk-debug/blue-ocean-strategy/releases/download/dev-build/BlueOceanIT-1.0.29.apk
-10-28 04:36:14.111  3245  3245 I BlueOcean: reload: articles=0 total=0 translated=0 pending=0
-10-28 04:36:14.495  3245  3245 I BlueOcean: reload: articles=0 total=0 translated=0 pending=0
-10-28 04:36:21.636  1446  3888 W gle.android.gms: Long monitor contention with owner OkHttpClientTransport (3896) at void eoek.c(enks)(:com.google.android.gms@231818047@23.18.18 (190800-535401451):23) waiters=0 in void eoel.e(java.lang.Runnable) for 464ms
-10-28 04:36:48.976  1446  4361 D LT_OkHttpChannelBuilder: Using Spatula header keyless authentication.
-10-28 04:38:17.016  3245  3430 I BlueOcean: sync: sources_ok=46 failed=14 candidates=897 new=870
-10-28 04:38:17.488  3245  3245 I BlueOcean: reload: articles=870 total=870 translated=139 pending=731
-10-28 04:38:26.125  3245  5350 I BlueOcean: translate: done=12 of 12
-10-28 04:38:27.200  3245  3245 I BlueOcean: reload: articles=870 total=870 translated=151 pending=719
-10-28 04:38:39.375  3245  5348 I BlueOcean: translate: done=30 of 30
-10-28 04:38:39.673  3245  3245 I BlueOcean: reload: articles=870 total=870 translated=181 pending=689
-10-28 04:38:43.164  3245  5344 I BlueOcean: translate: done=30 of 30
-10-28 04:38:43.953  3245  3245 I BlueOcean: reload: articles=870 total=870 translated=211 pending=659
+10-28 04:52:13.233  3384  3384 I BlueOcean: reload: articles=0 total=0 translated=0 pending=0
+10-28 04:52:13.234  3384  3384 I BlueOcean: reload: articles=0 total=0 translated=0 pending=0
+10-28 04:52:15.330  1443  3701 W gle.android.gms: Long monitor contention with owner OkHttpClientTransport (3432) at void eoek.c(enks)(:com.google.android.gms@231818047@23.18.18 (190800-535401451):23) waiters=0 in void eoel.e(java.lang.Runnable) for 161ms
+10-28 04:52:49.696  3384  3586 W .blueocean.news: Long monitor contention with owner OkHttp TaskRunner (3623) at void okhttp3.internal.concurrent.TaskRunner$runnable$1.run()(TaskRunner.kt:58) waiters=3 in void okhttp3.internal.concurrent.TaskQueue.schedule(okhttp3.internal.concurrent.Task, long) for 158ms
+10-28 04:52:53.552  1443  2326 D LT_OkHttpChannelBuilder: Using Spatula header keyless authentication.
+10-28 04:53:58.988  3384  3503 I BlueOcean: sync: sources_ok=46 failed=14 candidates=897 new=870
+10-28 04:53:59.409  3384  3384 I BlueOcean: reload: articles=870 total=870 translated=139 pending=731
+10-28 04:54:02.110  3384  4931 I BlueOcean: translate: done=12 of 12
+10-28 04:54:02.403  3384  3384 I BlueOcean: reload: articles=870 total=870 translated=151 pending=719
+10-28 04:54:07.771  3384  4934 I BlueOcean: translate: done=30 of 30
+10-28 04:54:08.243  3384  3384 I BlueOcean: reload: articles=870 total=870 translated=181 pending=689
+10-28 04:54:11.834  3384  3502 I BlueOcean: translate: done=30 of 30
+10-28 04:54:12.081  3384  3384 I BlueOcean: reload: articles=870 total=870 translated=211 pending=659
+10-28 04:54:16.465  3384  4932 I BlueOcean: translate: done=30 of 30
+10-28 04:54:16.777  3384  3384 I BlueOcean: reload: articles=870 total=870 translated=241 pending=629
+10-28 04:54:20.520  3384  3502 I BlueOcean: translate: done=30 of 30
+10-28 04:54:20.858  3384  3384 I BlueOcean: reload: articles=870 total=870 translated=271 pending=599
+10-28 04:54:24.853  3384  4928 I BlueOcean: translate: done=30 of 30
+10-28 04:54:25.550  3384  3384 I BlueOcean: reload: articles=870 total=870 translated=301 pending=569
+10-28 04:54:29.503  3384  5239 I BlueOcean: translate: done=30 of 30
+10-28 04:54:29.981  3384  3384 I BlueOcean: reload: articles=870 total=870 translated=331 pending=539
+10-28 04:54:33.750  3384  4933 I BlueOcean: translate: done=30 of 30
+10-28 04:54:34.374  3384  3384 I BlueOcean: reload: articles=870 total=870 translated=361 pending=509
+10-28 04:54:40.267  3384  5288 I BlueOcean: translate: done=30 of 30
+10-28 04:54:41.340  3384  3384 I BlueOcean: reload: articles=870 total=870 translated=391 pending=479
