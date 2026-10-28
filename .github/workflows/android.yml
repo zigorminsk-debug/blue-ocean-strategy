@@ -480,6 +480,7 @@ jobs:
             OLD_APK="old-apk/$OLD_NAME"
             if [ -f "$OLD_APK" ]; then
               adb install -r -d "$OLD_APK" 2>&1 | tail -n 2
+              adb shell appops set by.blueocean.news REQUEST_INSTALL_PACKAGES allow > /dev/null 2>&1
               adb shell am force-stop by.blueocean.news
               adb logcat -c
               adb shell am start -n by.blueocean.news/.MainActivity > /dev/null 2>&1
@@ -555,14 +556,19 @@ jobs:
               adb shell uiautomator dump /sdcard/ui.xml > /dev/null 2>&1
               adb pull /sdcard/ui.xml ui.xml > /dev/null 2>&1
               UPDATE_RESULT="FAIL"
-              if grep -q "update: installed=" logcat-update.txt; then UPDATE_RESULT="LOGGED"; fi
-              if [ -n "$NEWEST_VERSION" ] && grep -q "Доступна версия $NEWEST_VERSION" ui.xml 2>/dev/null; then
-                UPDATE_RESULT="OK"
+              FOUND="$(grep -E "update: installed=" logcat-update.txt | tail -n 1 || true)"
+              echo "$FOUND"
+              if [ -n "$NEWEST_VERSION" ] && echo "$FOUND" | grep -q "latest=$NEWEST_VERSION"; then
+                # новая версия найдена — приложение уже скачивает APK и зовёт установщик
+                UPDATE_RESULT="OK ($NEWEST_VERSION)"
               elif grep -q "У вас последняя версия" ui.xml 2>/dev/null; then
                 UPDATE_RESULT="WRONG: newest version not detected"
+              elif [ -n "$FOUND" ]; then
+                UPDATE_RESULT="MISMATCH: expected $NEWEST_VERSION"
+              elif grep -q "Доступна версия" ui.xml 2>/dev/null; then
+                UPDATE_RESULT="OK (banner)"
               fi
               echo "обновление на предыдущей сборке: $UPDATE_RESULT"
-              grep -E "update: installed=" logcat-update.txt | tail -n 3
               grep -o "Доступна версия [0-9.]*\|У вас последняя версия ([0-9.]*)" ui.xml 2>/dev/null | head -n 2
             fi
           fi
