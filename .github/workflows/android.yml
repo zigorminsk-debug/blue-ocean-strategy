@@ -146,8 +146,12 @@ jobs:
             signature.txt
           retention-days: 30
 
-      - name: Публикация релиза (main или ручной запуск)
-        if: steps.build.outcome == 'success' && (github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && inputs.publish_release))
+      # Релиз с версией публикуется на КАЖДЫЙ push, а не только в main:
+      # /releases/latest должен всегда указывать на свежий APK, иначе приложение
+      # (и особенно старые установленные версии) не видит обновлений.
+      - name: Публикация релиза версии
+        if: steps.build.outcome == 'success' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish_release))
+        continue-on-error: true
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.ver.outputs.name }}
