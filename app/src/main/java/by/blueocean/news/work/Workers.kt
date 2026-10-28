@@ -11,6 +11,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import by.blueocean.news.data.AppPrefs
 import by.blueocean.news.data.NewsRepository
+import by.blueocean.news.update.UpdateCheck
 import by.blueocean.news.update.UpdateManager
 import by.blueocean.news.util.Notifications
 import java.util.concurrent.TimeUnit
@@ -51,9 +52,12 @@ class UpdateCheckWorker(context: Context, params: WorkerParameters) : CoroutineW
         return try {
             val prefs = AppPrefs(applicationContext)
             if (!prefs.autoUpdate) return Result.success()
-            val info = UpdateManager(applicationContext).check()
-            if (info != null && prefs.notifications && prefs.skippedVersion != info.version) {
-                Notifications.notifyUpdate(applicationContext, info.version)
+            val result = UpdateManager(applicationContext).check()
+            if (result is UpdateCheck.Available &&
+                prefs.notifications &&
+                prefs.skippedVersion != result.info.version
+            ) {
+                Notifications.notifyUpdate(applicationContext, result.info.version)
             }
             Result.success()
         } catch (t: Throwable) {

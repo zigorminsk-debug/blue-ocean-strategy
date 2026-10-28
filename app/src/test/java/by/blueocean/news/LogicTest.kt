@@ -13,6 +13,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.json.JSONArray
+import org.json.JSONObject
 import org.junit.Test
 
 class FeedParserTest {
@@ -323,6 +325,87 @@ class UpdateVersionTest {
         assertTrue(UpdateManager.isNewer("2.0", "1.9.9"))
         assertFalse(UpdateManager.isNewer("1.0.2", "1.0.2"))
         assertFalse(UpdateManager.isNewer("1.0.1", "1.0.2"))
+    }
+
+    @Test
+    fun comparesVersionsNumerically() {
+        // строковое сравнение дало бы «1.0.9» > «1.0.25»
+        assertTrue(UpdateManager.isNewer("1.0.25", "1.0.9"))
+        assertFalse(UpdateManager.isNewer("1.0.9", "1.0.25"))
+    }
+
+    @Test
+    fun readsVersionFromTagAndAssetName() {
+        assertEquals("1.0.26", UpdateManager.versionOfTag("v1.0.26"))
+        assertEquals("1.0.26", UpdateManager.versionOfTag("V1.0.26"))
+        // тег рабочей ветки — не версия
+        assertEquals(null, UpdateManager.versionOfTag("dev-build"))
+        assertEquals("1.0.25", UpdateManager.versionOfAsset("BlueOceanIT-1.0.25.apk"))
+        assertEquals(null, UpdateManager.versionOfAsset("app-release.apk"))
+        assertEquals(null, UpdateManager.versionOfAsset("BlueOceanIT-1.0.25.txt"))
+    }
+
+    private fun release(tag: String, draft: Boolean = false, assets: List<String>): JSONObject {
+        val files = JSONArray()
+        assets.forEach { name ->
+            files.put(
+                JSONObject()
+                    .put("name", name)
+                    .put("size", 10_000_000)
+                    .put("browser_download_url", "https://example.com/$name")
+            )
+        }
+        return JSONObject()
+            .put("tag_name", tag)
+            .put("draft", draft)
+            .put("prerelease", tag == "dev-build")
+            .put("body", "notes")
+            .put("assets", files)
+    }
+
+    @Test
+    fun picksNewestApkFromSharedDevBuildRelease() {
+        // как в CI: один релиз с тегом dev-build и накопленными APK
+        val releases = JSONArray().put(
+            release(
+                "dev-build",
+                assets = listOf(
+                    "BlueOceanIT-1.0.18.apk",
+                    "BlueOceanIT-1.0.25.apk",
+                    "BlueOceanIT-1.0.24.apk"
+                )
+            )
+        )
+        val best = UpdateManager.pickNewestApk(releases)
+        assertNotNull(best)
+        assertEquals("1.0.25", best!!.version)
+        assertEquals("https://example.com/BlueOceanIT-1.0.25.apk", best.apkUrl)
+    }
+
+    @Test
+    fun picksNewestAcrossReleasesAndIgnoresDrafts() {
+        val releases = JSONArray()
+            .put(release("dev-build", assets = listOf("BlueOceanIT-1.0.25.apk")))
+            .put(release("v1.0.30", assets = listOf("BlueOceanIT-1.0.30.apk")))
+            .put(release("v1.0.99", draft = true, assets = listOf("BlueOceanIT-1.0.99.apk")))
+        val best = UpdateManager.pickNewestApk(releases)
+        assertEquals("1.0.30", best!!.version)
+    }
+
+    @Test
+    fun updateDetectedForOlderInstalledVersion() {
+        val releases = JSONArray().put(
+            release("dev-build", assets = listOf("BlueOceanIT-1.0.25.apk"))
+        )
+        val best = UpdateManager.pickNewestApk(releases)
+        assertTrue(UpdateManager.isNewer(best!!.version, "1.0.24"))
+        assertFalse(UpdateManager.isNewer(best.version, "1.0.25"))
+    }
+
+    @Test
+    fun ignoresReleaseWithoutApk() {
+        val releases = JSONArray().put(release("v1.0.30", assets = listOf("notes.txt")))
+        assertEquals(null, UpdateManager.pickNewestApk(releases))
     }
 }
 

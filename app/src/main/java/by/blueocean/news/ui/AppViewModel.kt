@@ -11,6 +11,7 @@ import by.blueocean.news.data.NewsRepository
 import by.blueocean.news.data.NewsStore
 import by.blueocean.news.data.Source
 import by.blueocean.news.data.Sources
+import by.blueocean.news.update.UpdateCheck
 import by.blueocean.news.update.UpdateManager
 import by.blueocean.news.work.WorkScheduler
 import kotlinx.coroutines.Dispatchers
@@ -394,18 +395,37 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (_update.value.checking || _update.value.downloading) return
         viewModelScope.launch {
             _update.update { it.copy(checking = true, message = null, error = null) }
-            val info = updateManager.check()
-            val skipped = info != null && prefs.skippedVersion == info.version
-            _update.update {
-                it.copy(
-                    checking = false,
-                    info = if (skipped) null else info,
-                    message = when {
-                        info != null && !skipped -> "Доступна версия ${info.version}"
-                        manual && info == null -> "У вас последняя версия ($versionName)"
-                        else -> null
+            val result = updateManager.check()
+            when (result) {
+                is UpdateCheck.Available -> {
+                    val skipped = prefs.skippedVersion == result.info.version
+                    _update.update {
+                        it.copy(
+                            checking = false,
+                            info = if (skipped) null else result.info,
+                            message = if (skipped) {
+                                "Версия ${result.info.version} пропущена"
+                            } else {
+                                "Доступна версия ${result.info.version}"
+                            }
+                        )
                     }
-                )
+                }
+                UpdateCheck.UpToDate -> _update.update {
+                    it.copy(
+                        checking = false,
+                        info = null,
+                        message = if (manual) "У вас последняя версия ($versionName)" else null
+                    )
+                }
+                is UpdateCheck.Failed -> _update.update {
+                    it.copy(
+                        checking = false,
+                        info = null,
+                        message = null,
+                        error = if (manual) "Не удалось проверить обновления: ${result.reason}" else null
+                    )
+                }
             }
         }
     }
