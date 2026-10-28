@@ -1,13 +1,15 @@
 --- вкладки ---
--rw-r--r-- 1 runner runner 280520 Oct 28 00:00 screen-landscape.png
--rw-r--r-- 1 runner runner 740925 Oct 27 23:59 screen-reader.png
--rw-r--r-- 1 runner runner 804833 Oct 28 00:00 screen-tablet.png
--rw-r--r-- 1 runner runner 350254 Oct 27 23:59 screen-Идеи.png
--rw-r--r-- 1 runner runner 250091 Oct 28 00:00 screen-Настройки.png
--rw-r--r-- 1 runner runner 259704 Oct 27 23:59 screen-Тренды.png
+UPDATE_RESULT: FAIL
+-rw-r--r-- 1 runner runner  200105 Oct 28 04:41 screen-landscape.png
+-rw-r--r-- 1 runner runner 1137743 Oct 28 04:40 screen-reader.png
+-rw-r--r-- 1 runner runner  952581 Oct 28 04:41 screen-tablet.png
+-rw-r--r-- 1 runner runner  247940 Oct 28 04:42 screen-update.png
+-rw-r--r-- 1 runner runner  448830 Oct 28 04:40 screen-Идеи.png
+-rw-r--r-- 1 runner runner  249219 Oct 28 04:41 screen-Настройки.png
+-rw-r--r-- 1 runner runner  256943 Oct 28 04:40 screen-Тренды.png
 TABS_RESULT: OK
-10-27 23:59:11.130  3362  5400 I BlueOcean: translate: done=30 of 30
-10-27 23:59:11.155  3362  3362 I BlueOcean: reload: articles=851 total=851 translated=841 pending=10
-10-27 23:59:12.490  3362  3506 I BlueOcean: translate: done=10 of 10
-10-27 23:59:12.518  3362  3362 I BlueOcean: reload: articles=851 total=851 translated=851 pending=0
-10-27 23:59:12.797  3362  3362 I BlueOcean: reload: articles=851 total=851 translated=851 pending=0
+10-28 04:40:15.079  3245  3245 I BlueOcean: reload: articles=870 total=870 translated=391 pending=479
+10-28 04:40:18.034  3245  3430 I BlueOcean: translate: done=30 of 30
+10-28 04:40:18.053  3245  3245 I BlueOcean: reload: articles=870 total=870 translated=421 pending=449
+10-28 04:40:22.369  3245  5354 I BlueOcean: translate: done=30 of 30
+10-28 04:40:22.389  3245  3245 I BlueOcean: reload: articles=870 total=870 translated=451 pending=419
