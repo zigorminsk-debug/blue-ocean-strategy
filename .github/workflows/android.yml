@@ -457,30 +457,40 @@ jobs:
           # Раньше версия бралась из тега (`dev-build`), а «свежим» считался первый
           # файл в списке — приложение отвечало «у вас последняя версия», хотя релиз новее.
           echo "--- проверка автообновления на предыдущей сборке ---"
-          gh release view dev-build --repo "${{ github.repository }}" \
-            --json assets -q '.assets[].name' > assets.txt 2>/dev/null || true
-          # Предыдущая сборка (в релизе хранятся три последних APK) и ожидаемая свежая версия
+          # Собираем имена APK из всех релизов (черновики пропускаем) — как это делает приложение
+          gh api "repos/${{ github.repository }}/releases?per_page=30" > releases.json 2>/dev/null || true
           read -r OLD_NAME NEWEST_VERSION <<<"$(python3 - <<'PY3'
-          import re
+          import json, re
           try:
-              names = [l.strip() for l in open('assets.txt') if l.strip().endswith('.apk')]
+              data = json.load(open('releases.json'))
           except Exception:
-              names = []
+              data = []
+          urls = {}
+          for rel in data:
+              if rel.get('draft'):
+                  continue
+              for asset in rel.get('assets', []):
+                  name = asset.get('name', '')
+                  if name.lower().endswith('.apk'):
+                      urls[name] = asset.get('browser_download_url', '')
           def key(n):
               m = re.search(r'(\d+(?:\.\d+)+)', n)
               return [int(x) for x in m.group(1).split('.')] if m else [0]
-          names.sort(key=key)
+          names = sorted(urls, key=key)
           old = names[-2] if len(names) > 1 else ""
           newest = names[-1] if names else ""
           m = re.search(r'(\d+(?:\.\d+)+)', newest)
           print(old, m.group(1) if m else "")
+          with open('old-url.txt', 'w') as f:
+              f.write(urls.get(old, ""))
           PY3
           )"
+          echo "ссылка на предыдущую сборку: $(cat old-url.txt 2>/dev/null)"
           echo "ставлю для проверки: $OLD_NAME (ожидаю обновление до $NEWEST_VERSION)"
           UPDATE_RESULT="SKIP"
           if [ -n "$OLD_NAME" ]; then
-            gh release download dev-build --repo "${{ github.repository }}" \
-              --pattern "$OLD_NAME" --dir old-apk --clobber 2>&1 | tail -n 2
+            mkdir -p old-apk
+            curl -sSL --retry 3 -o "old-apk/$OLD_NAME" "$(cat old-url.txt)" 2>&1 | tail -n 2
             OLD_APK="old-apk/$OLD_NAME"
             if [ -f "$OLD_APK" ]; then
               adb install -r -d "$OLD_APK" 2>&1 | tail -n 2
